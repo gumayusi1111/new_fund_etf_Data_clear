@@ -1,0 +1,40 @@
+{
+  "database_import": {
+    "enabled": true,
+    "auto_import": true,
+    "comment": "数据库自动导入配置"
+  },
+  "git_auto_commit": {
+    "enabled": false,
+    "auto_push": false,
+    "commit_message_prefix": "ETF数据自动更新",
+    "include_timestamp": true,
+    "comment": "Git自动提交配置，默认禁用以避免意外提交"
+  },
+  "etf_screening": {
+    "enabled": true,
+    "fuquan_type": "0_ETF日K(后复权)",
+    "days_back": null,
+    "comment": "ETF自动初筛配置"
+  },
+  "weekly_daily_validator": {
+    "enabled": true,
+    "auto_fix": false,
+    "tolerance": 0.0001,
+    "comment": "周更日更数据校验配置，tolerance为精度容差(0.01%)"
+  },
+  "system": {
+    "log_level": "INFO",
+    "max_retry_attempts": 3,
+    "timeout_seconds": 300,
+    "comment": "系统级配置"
+  },
+  "paths": {
+    "daily_dir": "ETF日更",
+    "weekly_dir": "ETF周更",
+    "market_status_dir": "ETF市场状况",
+    "screening_dir": "ETF_初筛",
+    "logs_dir": "logs",
+    "comment": "路径配置"
+  }
+} 
