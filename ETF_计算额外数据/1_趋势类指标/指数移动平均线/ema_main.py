@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-EMA主程序 - 中短期专版
-====================
+EMA主程序 - 重构版
+=================
 
 指数移动平均线计算的主程序入口
-支持单个ETF计算、批量处理、快速分析等功能
+使用重构后的模块化架构，与WMA/SMA系统保持一致
 
 使用示例:
     python ema_main.py                                     # 默认：批量计算所有门槛（3000万+5000万）
@@ -21,7 +21,12 @@ EMA主程序 - 中短期专版
 import argparse
 import sys
 import os
-from ema_calculator import EMAController
+
+# 添加当前目录到sys.path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, current_dir)
+
+from ema_calculator import EMAMainController, EMAController
 
 
 def parse_arguments():

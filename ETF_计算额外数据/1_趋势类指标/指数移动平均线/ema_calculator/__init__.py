@@ -1,43 +1,38 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-EMA计算器模块化包 - 中短期专版
-==============================
+EMA计算器模块 - 重构版
+====================
 
-📦 模块架构:
-- config: 配置管理
-- data_reader: 数据读取器
-- ema_engine: EMA计算引擎  
-- signal_analyzer: 信号分析器
-- result_processor: 结果处理器
-- file_manager: 文件管理器
-- controller: 主控制器
+模块化的指数移动平均线计算系统
+参照WMA/SMA系统的成功架构，提供统一的EMA计算接口
+
+📦 新架构组件:
+- controllers: 控制器层 (主控制器、ETF处理器、批量处理器)
+- engines: 计算引擎层 (EMA引擎、历史数据计算器)
+- infrastructure: 基础设施层 (配置、数据读取、缓存管理、文件管理)
+- outputs: 输出处理层 (结果处理、CSV处理、显示格式化)
 
 🛡️ 设计原则:
-- 高内聚低耦合
+- 分层架构，高内聚低耦合
+- 智能缓存，增量更新
+- 与WMA/SMA系统保持一致
 - 专注中短期指标 (EMA12, EMA26)
-- 简洁高效
 """
 
-__version__ = "1.0.0"
-__author__ = "ETF数据处理系统"
+__version__ = "2.0.0"
+__author__ = "EMA计算器重构团队"
 
-# 导入主要组件
-from .config import EMAConfig
-from .data_reader import ETFDataReader
-from .ema_engine import EMAEngine
-# from .signal_analyzer import SignalAnalyzer  # 🚫 已移除复杂分析
-from .result_processor import ResultProcessor
-from .file_manager import FileManager
-from .controller import EMAController
+# 主要接口导入 - 新架构
+from .controllers.main_controller import EMAMainController
+from .infrastructure.config import EMAConfig
+
+# 向后兼容的别名 (与原系统保持一致)
+EMAController = EMAMainController
 
 # 导出主要接口
 __all__ = [
-    'EMAConfig',
-    'ETFDataReader', 
-    'EMAEngine',
-    # 'SignalAnalyzer',  # 🚫 已移除复杂分析
-    'ResultProcessor',
-    'FileManager',
-    'EMAController'
+    'EMAMainController',
+    'EMAController',  # 向后兼容别名
+    'EMAConfig'
 ] 
