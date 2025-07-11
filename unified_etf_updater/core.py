@@ -152,12 +152,13 @@ class UnifiedETFUpdater:
     def run_full_update(self) -> dict:
         """
         执行完整更新流程（智能跳过无新数据的流程）
+        优化顺序：优先执行快速模块，避免被耗时模块阻塞
         
         Returns:
             各模块执行结果字典
         """
         start_time = datetime.now()
-        self.logger.info("🚀 开始执行完整ETF数据更新流程（智能跳过无新数据）")
+        self.logger.info("🚀 开始执行完整ETF数据更新流程（优化执行顺序）")
         
         results = {
             'daily': False,
@@ -167,38 +168,35 @@ class UnifiedETFUpdater:
         }
         reasons = {}
         
-        # 1. 执行日更
+        # 1. 执行日更（快速检查）
         daily_has_new, daily_reason = self.updaters.run_daily_update()
         results['daily'] = daily_has_new
         reasons['daily'] = daily_reason
         
-        # 2. 执行周更
-        weekly_has_new, weekly_reason = self.updaters.run_weekly_update()
-        results['weekly'] = weekly_has_new
-        reasons['weekly'] = weekly_reason
-        
-        # 3. 市场状况依赖日更
+        # 2. 优先执行市场状况检查（避免被周更阻塞）
         market_has_new, market_reason = self.updaters.run_market_status_check(daily_has_new)
         results['market_status'] = market_has_new
         reasons['market_status'] = market_reason
         
-        # 4. ETF初筛依赖日更
+        # 3. 优先执行ETF初筛（避免被周更阻塞）
         screening_has_new, screening_reason = self.updaters.run_etf_screening(daily_has_new)
         results['etf_screening'] = screening_has_new
         reasons['etf_screening'] = screening_reason
         
-        # 5. 数据库导入（只有有新数据才导入）
+        # 4. 最后执行周更（可能耗时很长）
+        weekly_has_new, weekly_reason = self.updaters.run_weekly_update()
+        results['weekly'] = weekly_has_new
+        reasons['weekly'] = weekly_reason
+        
+        # 5. 数据库导入（已禁用）
         if daily_has_new:
-            self.logger.info("📥 日更有新数据，导入数据库...")
-            self.database_manager.import_data("daily")
+            self.logger.info("📥 日更有新数据，数据库导入已禁用")
         
         if weekly_has_new:
-            self.logger.info("📥 周更有新数据，导入数据库...")
-            self.database_manager.import_data("weekly")
+            self.logger.info("📥 周更有新数据，数据库导入已禁用")
         
         if market_has_new:
-            self.logger.info("📥 市场状况有新数据，导入数据库...")
-            self.database_manager.import_data("market_status")
+            self.logger.info("📥 市场状况有新数据，数据库导入已禁用")
         
         # 注意：ETF初筛结果是文本文件，不需要数据库导入
         

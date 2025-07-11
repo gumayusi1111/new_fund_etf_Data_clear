@@ -168,21 +168,21 @@ class ETFUpdaters:
 
     def run_market_status_check(self, daily_has_new_data: bool) -> Tuple[bool, str]:
         """
-        执行ETF市场状况监控（依赖日更）
+        执行ETF市场状况监控（独立检查，不完全依赖日更）
         
         Args:
-            daily_has_new_data: 日更是否有新数据
+            daily_has_new_data: 日更是否有新数据（仅作参考）
         
         Returns:
             Tuple[是否成功, 原因描述]
         """
         self.logger.info("=" * 50)
-        self.logger.info("开始执行ETF市场状况监控（智能检查）")
+        self.logger.info("开始执行ETF市场状况监控（独立检查）")
         self.logger.info("=" * 50)
         
+        # 优化后的逻辑：即使日更无新数据，也执行市场状况检查
         if not daily_has_new_data:
-            self.logger.info("📊 日更无新数据，智能跳过市场状况检查")
-            return False, "依赖日更跳过"
+            self.logger.info("📊 日更无新数据，但仍执行市场状况独立检查")
         
         try:
             market_script = self.project_root / "ETF市场状况" / "market_status_monitor.py"
@@ -203,9 +203,16 @@ class ETFUpdaters:
             
             output = result.stdout + result.stderr
             
-            if result.returncode == 0 and ("报告已更新" in output or "监控完成" in output):
-                self.logger.info("✅ ETF市场状况监控完成（有新数据）")
-                return True, "有新数据"
+            if result.returncode == 0:
+                if "报告已更新" in output or "监控完成" in output:
+                    self.logger.info("✅ ETF市场状况监控完成（有新数据）")
+                    return True, "有新数据"
+                elif "无变化" in output or "已是最新" in output:
+                    self.logger.info("📊 ETF市场状况无变化，智能跳过")
+                    return False, "无变化"
+                else:
+                    self.logger.info("✅ ETF市场状况监控完成")
+                    return True, "监控完成"
             else:
                 self.logger.error("❌ ETF市场状况监控失败")
                 if result.stderr:
@@ -218,25 +225,25 @@ class ETFUpdaters:
 
     def run_etf_screening(self, daily_has_new_data: bool) -> Tuple[bool, str]:
         """
-        执行ETF初筛流程（依赖日更）
+        执行ETF初筛流程（独立检查，不完全依赖日更）
         
         Args:
-            daily_has_new_data: 日更是否有新数据
+            daily_has_new_data: 日更是否有新数据（仅作参考）
         
         Returns:
             Tuple[是否成功, 原因描述]
         """
         self.logger.info("=" * 50)
-        self.logger.info("开始执行ETF初筛流程（双门槛筛选）")
+        self.logger.info("开始执行ETF初筛流程（独立双门槛筛选）")
         self.logger.info("=" * 50)
         
         if not self.auto_screening_enabled:
             self.logger.info("ℹ️ ETF自动初筛已禁用，跳过")
             return False, "初筛已禁用"
         
+        # 优化后的逻辑：即使日更无新数据，也可以执行初筛
         if not daily_has_new_data:
-            self.logger.info("📊 日更无新数据，智能跳过ETF初筛")
-            return False, "依赖日更跳过"
+            self.logger.info("📊 日更无新数据，但仍执行ETF初筛独立检查")
         
         try:
             screening_dir = self.project_root / "ETF_初筛"
@@ -268,17 +275,24 @@ class ETFUpdaters:
             output = result.stdout + result.stderr
             
             # 检查执行结果
-            if result.returncode == 0 and ("双门槛筛选对比结果" in output or "保存双门槛筛选结果" in output):
-                self.logger.info("✅ ETF初筛完成（生成新筛选结果）")
-                
-                # 从输出中提取统计信息
-                if "通过筛选ETF" in output:
-                    lines = output.split('\n')
-                    for line in lines:
-                        if "5000万门槛通过筛选ETF" in line or "3000万门槛通过筛选ETF" in line:
-                            self.logger.info(f"  🎯 {line.strip()}")
-                
-                return True, "有新筛选结果"
+            if result.returncode == 0:
+                if "双门槛筛选对比结果" in output or "保存双门槛筛选结果" in output:
+                    self.logger.info("✅ ETF初筛完成（生成新筛选结果）")
+                    
+                    # 从输出中提取统计信息
+                    if "通过筛选ETF" in output:
+                        lines = output.split('\n')
+                        for line in lines:
+                            if "5000万门槛通过筛选ETF" in line or "3000万门槛通过筛选ETF" in line:
+                                self.logger.info(f"  🎯 {line.strip()}")
+                    
+                    return True, "有新筛选结果"
+                elif "无变化" in output or "已是最新" in output:
+                    self.logger.info("📊 ETF筛选结果无变化，智能跳过")
+                    return False, "无变化"
+                else:
+                    self.logger.info("✅ ETF初筛执行完成")
+                    return True, "筛选完成"
             else:
                 self.logger.error("❌ ETF初筛失败")
                 if result.stderr:

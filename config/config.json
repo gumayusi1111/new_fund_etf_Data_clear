@@ -1,8 +1,8 @@
 {
   "database_import": {
-    "enabled": true,
-    "auto_import": true,
-    "comment": "数据库自动导入配置"
+    "enabled": false,
+    "auto_import": false,
+    "comment": "数据库自动导入配置 - 已禁用"
   },
   "git_auto_commit": {
     "enabled": false,
