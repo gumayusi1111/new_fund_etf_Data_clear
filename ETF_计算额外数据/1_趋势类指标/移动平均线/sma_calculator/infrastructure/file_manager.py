@@ -116,6 +116,31 @@ class SMAFileManager:
         except Exception:
             return 0
     
+    def clean_data_directory(self, subdir: str = "") -> int:
+        """完全清理data目录，确保每次运行前刷新"""
+        try:
+            import shutil
+            
+            target_dir = os.path.join(self.output_dir, subdir) if subdir else self.output_dir
+            cleaned_count = 0
+            
+            if os.path.exists(target_dir):
+                # 计算即将删除的文件数
+                for root, dirs, files in os.walk(target_dir):
+                    cleaned_count += len(files)
+                
+                # 删除整个目录
+                shutil.rmtree(target_dir)
+                print(f"🗑️ 已清理data目录: {target_dir} ({cleaned_count}个文件)")
+            
+            # 重新创建目录
+            os.makedirs(target_dir, exist_ok=True)
+            
+            return cleaned_count
+        except Exception as e:
+            print(f"❌ 清理data目录失败: {str(e)}")
+            return 0
+    
     def get_directory_summary(self) -> Dict[str, any]:
         """获取目录摘要信息"""
         try:

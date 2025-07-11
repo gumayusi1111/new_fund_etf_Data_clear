@@ -224,7 +224,7 @@ class MACDMainController:
                 return None
             
             df = result['result_df']
-            latest = df.iloc[-1]
+            latest = df.iloc[0]  # 获取第一行（最新数据，因为数据按日期倒序排列）
             
             # 基础分析
             analysis = {
@@ -232,19 +232,20 @@ class MACDMainController:
                 'calculation_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'data_points': len(df),
                 'latest_values': {
-                    'date': latest['日期'].strftime('%Y-%m-%d') if pd.notna(latest['日期']) else 'N/A',
-                    'DIF': float(latest['DIF']) if pd.notna(latest['DIF']) else None,
-                    'DEA': float(latest['DEA']) if pd.notna(latest['DEA']) else None,
-                    'MACD': float(latest['MACD']) if pd.notna(latest['MACD']) else None,
-                    'DIF_DEA_DIFF': float(latest['DIF_DEA_DIFF']) if pd.notna(latest['DIF_DEA_DIFF']) else None
+                    'date': latest['date'] if pd.notna(latest['date']) else 'N/A',
+                    'DIF': float(latest['dif']) if pd.notna(latest['dif']) else None,
+                    'DEA': float(latest['dea']) if pd.notna(latest['dea']) else None,
+                    'MACD': float(latest['macd_bar']) if pd.notna(latest['macd_bar']) else None,
+                    'EMA_FAST': float(latest['ema_fast']) if pd.notna(latest['ema_fast']) else None,
+                    'EMA_SLOW': float(latest['ema_slow']) if pd.notna(latest['ema_slow']) else None
                 },
                 'statistics': {
-                    'DIF_mean': float(df['DIF'].mean()),
-                    'DEA_mean': float(df['DEA'].mean()),
-                    'MACD_mean': float(df['MACD'].mean()),
-                    'DIF_std': float(df['DIF'].std()),
-                    'DEA_std': float(df['DEA'].std()),
-                    'MACD_std': float(df['MACD'].std())
+                    'DIF_mean': float(df['dif'].mean()),
+                    'DEA_mean': float(df['dea'].mean()),
+                    'MACD_mean': float(df['macd_bar'].mean()),
+                    'DIF_std': float(df['dif'].std()),
+                    'DEA_std': float(df['dea'].std()),
+                    'MACD_std': float(df['macd_bar'].std())
                 }
             }
             

@@ -175,7 +175,7 @@ class WMAMainController:
     
     def calculate_and_save_screening_results(self, thresholds: Optional[List[str]] = None) -> Dict[str, Any]:
         """
-        计算并保存筛选结果的WMA数据 - 真正的增量更新模式
+        计算并保存筛选结果的WMA数据 - 包含data文件保存功能
         
         Args:
             thresholds: 门槛列表，默认["3000万门槛", "5000万门槛"]
@@ -185,7 +185,7 @@ class WMAMainController:
         """
         thresholds = thresholds or ["3000万门槛", "5000万门槛"]
         
-        print(f"🚀 开始筛选结果WMA增量更新...")
+        print(f"🚀 开始筛选结果WMA计算和保存...")
         print(f"📊 门槛设置: {thresholds}")
         
         all_results = {}
@@ -193,7 +193,7 @@ class WMAMainController:
         for threshold in thresholds:
             print(f"\n📈 处理门槛: {threshold}")
             
-            # 使用批量处理器进行增量更新计算（真正的增量更新）
+            # 使用批量处理器进行增量更新计算
             results = self.batch_processor.process_screening_results(threshold)
             
             if results:
@@ -212,7 +212,13 @@ class WMAMainController:
                 all_results[threshold] = []
                 print(f"❌ {threshold}: 无可用结果")
         
-        # 显示结果预览（不保存全量历史文件）
+        # 保存筛选结果到data目录
+        if all_results:
+            print(f"\n💾 保存筛选结果到data目录...")
+            save_stats = self.result_processor.save_screening_batch_results(all_results, self.output_dir)
+            print(f"✅ data文件保存完成")
+        
+        # 显示结果预览
         for threshold, results in all_results.items():
             if results:
                 print(f"\n📊 {threshold} 结果预览:")
@@ -221,7 +227,7 @@ class WMAMainController:
         return {
             'calculation_results': all_results,
             'total_etfs': sum(len(results) for results in all_results.values()),
-            'mode': 'incremental_update'  # 标记为增量更新模式
+            'mode': 'complete_with_data_save'  # 标记为完整保存模式
         }
     
     def calculate_and_save_historical_wma(self, etf_codes: Optional[List[str]] = None, 

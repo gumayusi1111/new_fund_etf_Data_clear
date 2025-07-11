@@ -14,6 +14,7 @@ import numpy as np
 from datetime import datetime
 from typing import Dict, Optional, List, Any, Set
 from .config import WMAConfig
+from .utils import normalize_date_format, compare_dates_safely
 
 
 class WMACacheManager:
@@ -202,29 +203,8 @@ class WMACacheManager:
             # 获取第一行的日期（最新日期）
             latest_date = df.iloc[0]['日期']
             
-            # 🔧 修复：正确处理日期格式转换
-            if pd.isna(latest_date):
-                return None
-            
-            # 转换为字符串
-            latest_date_str = str(latest_date)
-            
-            # 如果是YYYY-MM-DD格式，转换为YYYYMMDD
-            if '-' in latest_date_str and len(latest_date_str) == 10:
-                # YYYY-MM-DD -> YYYYMMDD
-                latest_date = latest_date_str.replace('-', '')
-            elif len(latest_date_str) == 8 and latest_date_str.isdigit():
-                # 已经是YYYYMMDD格式
-                latest_date = latest_date_str
-            else:
-                # 尝试用pandas解析
-                try:
-                    parsed_date = pd.to_datetime(latest_date_str)
-                    latest_date = parsed_date.strftime('%Y%m%d')
-                except:
-                    return None
-            
-            return latest_date
+            # 使用统一的日期格式化函数
+            return normalize_date_format(latest_date)
             
         except Exception as e:
             if not (self.config and self.config.performance_mode):
@@ -301,27 +281,8 @@ class WMACacheManager:
                 # ✅ 正确：源文件是按时间倒序排列，最新数据在第一行（除了header）
                 source_latest_date = source_df.iloc[0]['日期']  # 最新数据在第一行
                 
-                # 处理日期格式：YYYYMMDD -> YYYYMMDD（确保格式统一）
-                if isinstance(source_latest_date, (int, np.integer)):
-                    source_latest_date = str(source_latest_date)
-                elif isinstance(source_latest_date, str):
-                    if len(source_latest_date) == 8 and source_latest_date.isdigit():
-                        # 已经是YYYYMMDD格式
-                        pass
-                    else:
-                        # 尝试解析其他格式
-                        try:
-                            source_latest_date = pd.to_datetime(source_latest_date).strftime('%Y%m%d')
-                        except:
-                            return False
-                else:
-                    try:
-                        source_latest_date = pd.to_datetime(source_latest_date).strftime('%Y%m%d')
-                    except:
-                        return False
-                
-                # 如果缓存的最新日期 >= 源文件最新日期，则缓存有效
-                return cache_latest_date >= source_latest_date
+                # 使用统一的日期比较函数
+                return compare_dates_safely(cache_latest_date, source_latest_date)
                 
             except Exception as e:
                 if not (self.config and self.config.performance_mode):

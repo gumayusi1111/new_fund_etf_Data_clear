@@ -12,6 +12,7 @@ import json
 import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Set
+from .utils import normalize_date_format, compare_dates_safely
 
 
 class SMACacheManager:
@@ -204,21 +205,8 @@ class SMACacheManager:
             # 获取第一行的日期（最新日期）
             latest_date = df.iloc[0]['日期']
             
-            # 确保返回字符串格式（安全的日期类型处理）
-            if isinstance(latest_date, int):
-                # 假设是YYYYMMDD格式的整数
-                latest_date = str(latest_date)
-            elif hasattr(latest_date, 'strftime'):
-                # 如果是datetime对象，格式化为YYYYMMDD
-                latest_date = latest_date.strftime('%Y%m%d')
-            elif pd.isna(latest_date):
-                # 如果是NaN，返回None
-                return None
-            else:
-                # 其他类型转为字符串
-                latest_date = str(latest_date)
-            
-            return latest_date
+            # 使用统一的日期格式化函数
+            return normalize_date_format(latest_date)
             
         except Exception as e:
             print(f"⚠️ 获取{etf_code}最新日期失败: {str(e)}")

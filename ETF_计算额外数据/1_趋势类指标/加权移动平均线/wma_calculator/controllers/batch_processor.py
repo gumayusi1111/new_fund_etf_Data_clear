@@ -375,8 +375,8 @@ class WMABatchProcessor:
             if etf_df.empty:
                 return None
             
-            # 确保日期格式统一
-            etf_df['日期'] = pd.to_datetime(etf_df['日期']).dt.strftime('%Y%m%d')
+            # 确保日期格式统一为YYYY-MM-DD
+            etf_df['日期'] = pd.to_datetime(etf_df['日期']).dt.strftime('%Y-%m-%d')
             etf_df = etf_df.sort_values('日期', ascending=False).reset_index(drop=True)
             
             # 3. 检查是否有新数据

@@ -111,8 +111,9 @@ class SMAConfig:
     
     def get_etf_file_path(self, etf_code: str) -> str:
         """获取ETF数据文件路径"""
-        # 直接使用ETF代码，不添加交易所后缀（文件名格式为159001.csv）
-        return os.path.join(self.data_dir, f"{etf_code}.csv")
+        # 清理ETF代码，去除交易所后缀（文件名格式为159001.csv）
+        clean_etf_code = etf_code.replace('.SH', '').replace('.SZ', '')
+        return os.path.join(self.data_dir, f"{clean_etf_code}.csv")
     
     def get_sma_display_info(self) -> str:
         """获取配置显示信息"""

@@ -51,8 +51,10 @@ class WMAHistoricalCalculator:
             prices = df_calc['收盘价'].astype(float)
             
             # Step 2: 创建结果DataFrame - 只保留必要字段（与SMA格式一致）
+            # 统一ETF代码格式：去除.SH/.SZ后缀
+            clean_etf_code = etf_code.replace('.SH', '').replace('.SZ', '')
             result_df = pd.DataFrame({
-                '代码': df_calc['代码'],
+                '代码': [clean_etf_code] * len(df_calc),
                 '日期': df_calc['日期']
             })
             

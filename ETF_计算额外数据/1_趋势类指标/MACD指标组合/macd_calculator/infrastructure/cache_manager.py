@@ -15,6 +15,7 @@ import numpy as np
 from datetime import datetime
 from typing import Dict, Optional, List, Any, Set
 from .config import MACDConfig
+from .utils import normalize_date_format, compare_dates_safely
 
 
 class MACDCacheManager:
@@ -339,27 +340,8 @@ class MACDCacheManager:
             else:
                 return None
             
-            # 处理日期格式转换
-            if pd.isna(latest_date):
-                return None
-            
-            # 转换为字符串
-            latest_date_str = str(latest_date)
-            
-            # 如果是YYYY-MM-DD格式，转换为YYYYMMDD
-            if '-' in latest_date_str and len(latest_date_str) == 10:
-                latest_date = latest_date_str.replace('-', '')
-            elif len(latest_date_str) == 8 and latest_date_str.isdigit():
-                latest_date = latest_date_str
-            else:
-                # 尝试用pandas解析
-                try:
-                    parsed_date = pd.to_datetime(latest_date_str)
-                    latest_date = parsed_date.strftime('%Y%m%d')
-                except:
-                    return None
-            
-            return latest_date
+            # 使用统一的日期格式化函数
+            return normalize_date_format(latest_date)
             
         except Exception as e:
             if not (self.config and self.config.performance_mode):
@@ -423,7 +405,7 @@ class MACDCacheManager:
                     return False
                 
                 # 检查缓存中的最新数据日期
-                cache_latest_date = self.get_cached_etf_latest_date(etf_code, threshold)
+                cache_latest_date = self.get_cached_etf_latest_date(etf_code, threshold, parameter_folder)
                 if not cache_latest_date:
                     return False
                 
@@ -440,33 +422,8 @@ class MACDCacheManager:
                 else:
                     return False
                 
-                # 统一日期格式为YYYYMMDD字符串进行比较
-                def normalize_date(date_val):
-                    """统一日期格式为YYYYMMDD字符串"""
-                    if isinstance(date_val, (int, np.integer)):
-                        return str(date_val)
-                    elif isinstance(date_val, str):
-                        if len(date_val) == 8 and date_val.isdigit():
-                            return date_val
-                        else:
-                            try:
-                                return pd.to_datetime(date_val).strftime('%Y%m%d')
-                            except:
-                                return None
-                    else:
-                        try:
-                            return pd.to_datetime(date_val).strftime('%Y%m%d')
-                        except:
-                            return None
-                
-                source_date_normalized = normalize_date(source_latest_date)
-                cache_date_normalized = normalize_date(cache_latest_date)
-                
-                if not source_date_normalized or not cache_date_normalized:
-                    return False
-                
-                # 如果缓存的最新日期 >= 源文件最新日期，则缓存有效
-                return cache_date_normalized >= source_date_normalized
+                # 使用统一的日期比较函数
+                return compare_dates_safely(cache_latest_date, source_latest_date)
                 
             except Exception as e:
                 if not (self.config and self.config.performance_mode):

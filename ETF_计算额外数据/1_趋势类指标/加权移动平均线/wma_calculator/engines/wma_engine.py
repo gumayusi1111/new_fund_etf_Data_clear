@@ -101,13 +101,20 @@ class WMAEngine:
             print("❌ 科学错误: 缺少收盘价字段")
             return wma_results
         
-        # 数据验证：检查是否有足够数据 - 保持原有验证
+        # 数据验证：检查是否有足够数据 - 改进的验证逻辑
         max_period = max(self.config.wma_periods) if self.config.wma_periods else 20
-        if len(df) < max_period:
-            print(f"❌ 数据不足: 数据行数({len(df)})小于最大周期({max_period})")
+        available_periods = [p for p in self.config.wma_periods if p <= len(df)]
+        
+        if len(available_periods) == 0:
+            min_period = min(self.config.wma_periods) if self.config.wma_periods else 3
+            print(f"❌ 数据不足: 数据行数({len(df)})小于最小周期({min_period})")
             return wma_results
         
-        print(f"📊 数据概况: {len(df)}行历史数据，支持最大WMA{max_period}计算")
+        if len(available_periods) < len(self.config.wma_periods):
+            unavailable_periods = [p for p in self.config.wma_periods if p > len(df)]
+            print(f"⚠️ 部分周期将跳过: {unavailable_periods} (数据不足)")
+        
+        print(f"📊 数据概况: {len(df)}行历史数据，支持周期: {available_periods}")
         
         prices = df['收盘价'].copy()
         
@@ -116,13 +123,9 @@ class WMAEngine:
             print(f"⚠️  科学警告: 检测到{prices.isnull().sum()}个缺失价格值")
             prices = prices.ffill()
         
-        # 计算各周期WMA - 统一使用下划线格式
-        for period in self.config.wma_periods:
+        # 计算各周期WMA - 只计算可用周期
+        for period in available_periods:
             try:
-                if period > len(prices):
-                    print(f"  ❌ WMA_{period}: 周期({period})超过数据长度({len(prices)})")
-                    wma_results[f'WMA_{period}'] = None
-                    continue
                 
                 wma_values = self.calculate_single_wma(prices, period)
                 
