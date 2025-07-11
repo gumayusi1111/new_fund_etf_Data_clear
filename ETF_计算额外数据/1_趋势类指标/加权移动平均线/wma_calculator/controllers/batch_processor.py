@@ -174,7 +174,7 @@ class WMABatchProcessor:
     
     def _try_save_to_cache(self, etf_code: str, result: Dict, threshold: str) -> bool:
         """
-        尝试保存结果到缓存
+        尝试保存结果到缓存 - 统一缓存格式
         
         Args:
             etf_code: ETF代码
@@ -185,64 +185,12 @@ class WMABatchProcessor:
             bool: 保存是否成功
         """
         try:
-            # 重新读取完整数据以保存到缓存
-            data_result = self.etf_processor.data_reader.read_etf_data(etf_code)
-            if data_result is None:
-                return False
+            # 统一缓存格式：直接保存historical_data（与SMA项目一致）
+            if result and result.get('historical_data') is not None:
+                historical_data = result['historical_data']
+                return self.cache_manager.save_etf_cache(etf_code, historical_data, threshold)
             
-            df, _ = data_result
-            
-            # 计算完整的WMA数据
-            wma_series_dict = {}
-            for period in self.config.wma_periods:
-                wma_series = self.etf_processor.wma_engine.calculate_single_wma(df['收盘价'], period)
-                wma_series_dict[f'WMA_{period}'] = wma_series
-            
-            # 添加WMA差值
-            if 'WMA_5' in wma_series_dict and 'WMA_20' in wma_series_dict:
-                wma_series_dict['WMA_DIFF_5_20'] = wma_series_dict['WMA_5'] - wma_series_dict['WMA_20']
-            
-            if 'WMA_3' in wma_series_dict and 'WMA_5' in wma_series_dict:
-                wma_series_dict['WMA_DIFF_3_5'] = wma_series_dict['WMA_3'] - wma_series_dict['WMA_5']
-            
-            # 计算相对差值百分比
-            if 'WMA_DIFF_5_20' in wma_series_dict and 'WMA_20' in wma_series_dict:
-                wma20_series = wma_series_dict['WMA_20']
-                diff_series = wma_series_dict['WMA_DIFF_5_20']
-                wma_series_dict['WMA_DIFF_5_20_PCT'] = (diff_series / wma20_series * 100).round(4)
-            
-            # 🔧 修复：只保存必要字段，不包含基础数据
-            # 创建只包含WMA结果的精简DataFrame，统一字段格式
-            clean_df = pd.DataFrame({
-                '代码': [etf_code] * len(df),  # 保留完整ETF代码（包含.SZ/.SH）
-                '日期': df['日期']
-            })
-            
-            # 添加WMA计算结果，统一使用无下划线格式
-            field_mapping = {
-                'WMA_3': 'WMA3',
-                'WMA_5': 'WMA5', 
-                'WMA_10': 'WMA10',
-                'WMA_20': 'WMA20',
-                'WMA_DIFF_5_20': 'WMA差值5-20',
-                'WMA_DIFF_3_5': 'WMA差值3-5',
-                'WMA_DIFF_5_20_PCT': 'WMA差值5-20(%)'
-            }
-            
-            for old_col, new_col in field_mapping.items():
-                if old_col in wma_series_dict:
-                    # 保持合理精度，避免过多小数位
-                    series = wma_series_dict[old_col]
-                    if old_col.endswith('_PCT'):
-                        clean_df[new_col] = series.round(4)  # 百分比保留4位小数
-                    else:
-                        clean_df[new_col] = series.round(6)  # 其他保留6位小数
-            
-            # 确保数据按时间倒序保存（与原有系统一致）
-            clean_df = clean_df.sort_values('日期', ascending=False)
-            
-            # 保存精简缓存
-            return self.cache_manager.save_etf_cache(etf_code, clean_df, threshold)
+            return False
             
         except Exception as e:
             print(f"⚠️ 缓存保存失败: {etf_code} - {str(e)}")
@@ -274,37 +222,28 @@ class WMABatchProcessor:
         """
         df_with_wma = df.copy()
         
-        # 计算各周期WMA
+        # 计算各周期WMA，统一使用下划线格式
         for period in self.config.wma_periods:
             wma_series = self.etf_processor.wma_engine.calculate_single_wma(df['收盘价'], period)
-            # 添加两种格式的字段名以确保兼容性
-            df_with_wma[f'WMA{period}'] = wma_series
             df_with_wma[f'WMA_{period}'] = wma_series
         
         # 计算WMA差值
-        if 'WMA5' in df_with_wma.columns and 'WMA20' in df_with_wma.columns:
-            diff_5_20 = df_with_wma['WMA5'] - df_with_wma['WMA20']
-            # 添加两种格式的字段名以确保兼容性
-            df_with_wma['WMA差值5-20'] = diff_5_20
+        if 'WMA_5' in df_with_wma.columns and 'WMA_20' in df_with_wma.columns:
+            diff_5_20 = df_with_wma['WMA_5'] - df_with_wma['WMA_20']
             df_with_wma['WMA_DIFF_5_20'] = diff_5_20
         
-        if 'WMA3' in df_with_wma.columns and 'WMA5' in df_with_wma.columns:
-            diff_3_5 = df_with_wma['WMA3'] - df_with_wma['WMA5']
-            # 添加两种格式的字段名以确保兼容性
-            df_with_wma['WMA差值3-5'] = diff_3_5
+        if 'WMA_3' in df_with_wma.columns and 'WMA_5' in df_with_wma.columns:
+            diff_3_5 = df_with_wma['WMA_3'] - df_with_wma['WMA_5']
             df_with_wma['WMA_DIFF_3_5'] = diff_3_5
         
         # 计算相对差值百分比
-        if ('WMA差值5-20' in df_with_wma.columns or 'WMA_DIFF_5_20' in df_with_wma.columns) and 'WMA20' in df_with_wma.columns:
-            # 使用可用的字段
-            diff_series = df_with_wma.get('WMA差值5-20', df_with_wma.get('WMA_DIFF_5_20'))
-            wma20_series = df_with_wma['WMA20']
+        if 'WMA_DIFF_5_20' in df_with_wma.columns and 'WMA_20' in df_with_wma.columns:
+            diff_series = df_with_wma['WMA_DIFF_5_20']
+            wma20_series = df_with_wma['WMA_20']
             # 避免除以零错误
             valid_mask = wma20_series != 0
             pct_series = pd.Series([0.0] * len(df_with_wma), index=df_with_wma.index)
             pct_series[valid_mask] = (diff_series[valid_mask] / wma20_series[valid_mask] * 100).round(4)
-            # 添加两种格式的字段名以确保兼容性
-            df_with_wma['WMA差值5-20(%)'] = pct_series
             df_with_wma['WMA_DIFF_5_20_PCT'] = pct_series
         
         return df_with_wma
@@ -511,27 +450,22 @@ class WMABatchProcessor:
                 'change_pct': float(etf_df.iloc[0]['涨幅%']) if '涨幅%' in etf_df.columns else 0.0
             }
             
-            # 构建WMA值
+            # 构建WMA值 - 统一使用下划线格式
             wma_values = {}
             for period in self.config.wma_periods:
-                wma_col = f'WMA{period}'
+                wma_col = f'WMA_{period}'
                 if wma_col in latest_row:
                     wma_val = latest_row[wma_col]
                     if pd.notna(wma_val):
                         wma_values[f'WMA_{period}'] = float(wma_val)
             
-            # 差值指标
-            diff_mappings = {
-                'WMA差值5-20': 'WMA_DIFF_5_20',
-                'WMA差值5-20(%)': 'WMA_DIFF_5_20_PCT',
-                'WMA差值3-5': 'WMA_DIFF_3_5'
-            }
-            
-            for col_name, result_key in diff_mappings.items():
-                if col_name in latest_row:
-                    val = latest_row[col_name]
+            # 差值指标 - 统一使用下划线格式
+            diff_fields = ['WMA_DIFF_5_20', 'WMA_DIFF_5_20_PCT', 'WMA_DIFF_3_5']
+            for field in diff_fields:
+                if field in latest_row:
+                    val = latest_row[field]
                     if pd.notna(val):
-                        wma_values[result_key] = float(val)
+                        wma_values[field] = float(val)
             
             result = {
                 'etf_code': etf_code,
@@ -628,7 +562,7 @@ class WMABatchProcessor:
             return None
     
     def _load_from_cache(self, etf_code: str, threshold: str) -> Optional[Dict]:
-        """从缓存加载ETF结果"""
+        """从缓存加载ETF结果 - 统一缓存格式"""
         try:
             cached_df = self.cache_manager.load_cached_etf_data(etf_code, threshold)
             
@@ -637,16 +571,16 @@ class WMABatchProcessor:
             
             # 确保缓存数据按时间倒序排列
             cached_df = cached_df.sort_values('日期', ascending=False).reset_index(drop=True)
-            
             latest_row = cached_df.iloc[0]  # 第一行是最新数据
             
-            # 尝试从源文件获取最新价格信息（只读取第一行）
+            # 构建最新价格信息
             latest_price = {
                 'date': str(latest_row['日期']),
                 'close': 0.0,
                 'change_pct': 0.0
             }
             
+            # 尝试从源文件获取最新价格信息
             try:
                 source_file_path = self.config.get_file_path(etf_code)
                 source_df = pd.read_csv(source_file_path, encoding='utf-8', nrows=1)
@@ -656,27 +590,22 @@ class WMABatchProcessor:
             except:
                 pass  # 如果读取失败，使用默认值
             
-            # 构建WMA值
+            # 构建WMA值 - 统一使用下划线格式
             wma_values = {}
             for period in self.config.wma_periods:
-                wma_col = f'WMA{period}'
-                if wma_col in cached_df.columns and wma_col in latest_row:
+                wma_col = f'WMA_{period}'
+                if wma_col in cached_df.columns:
                     wma_val = latest_row[wma_col]
                     if pd.notna(wma_val):
                         wma_values[f'WMA_{period}'] = float(wma_val)
             
-            # 差值指标
-            diff_mappings = {
-                'WMA差值5-20': 'WMA_DIFF_5_20',
-                'WMA差值5-20(%)': 'WMA_DIFF_5_20_PCT',
-                'WMA差值3-5': 'WMA_DIFF_3_5'
-            }
-            
-            for cache_col, result_key in diff_mappings.items():
-                if cache_col in cached_df.columns and cache_col in latest_row:
-                    val = latest_row[cache_col]
+            # 差值指标 - 统一使用下划线格式
+            diff_fields = ['WMA_DIFF_5_20', 'WMA_DIFF_5_20_PCT', 'WMA_DIFF_3_5']
+            for field in diff_fields:
+                if field in cached_df.columns:
+                    val = latest_row[field]
                     if pd.notna(val):
-                        wma_values[result_key] = float(val)
+                        wma_values[field] = float(val)
             
             # 构建结果对象
             result = {

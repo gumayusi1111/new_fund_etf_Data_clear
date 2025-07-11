@@ -175,7 +175,7 @@ class WMAMainController:
     
     def calculate_and_save_screening_results(self, thresholds: Optional[List[str]] = None) -> Dict[str, Any]:
         """
-        计算并保存筛选结果的WMA数据 - 保持原有功能
+        计算并保存筛选结果的WMA数据 - 真正的增量更新模式
         
         Args:
             thresholds: 门槛列表，默认["3000万门槛", "5000万门槛"]
@@ -185,30 +185,34 @@ class WMAMainController:
         """
         thresholds = thresholds or ["3000万门槛", "5000万门槛"]
         
-        print(f"🚀 开始筛选结果WMA计算和保存...")
+        print(f"🚀 开始筛选结果WMA增量更新...")
         print(f"📊 门槛设置: {thresholds}")
         
         all_results = {}
-        save_stats = {}
         
         for threshold in thresholds:
             print(f"\n📈 处理门槛: {threshold}")
             
-            # 使用批量处理器计算筛选结果
+            # 使用批量处理器进行增量更新计算（真正的增量更新）
             results = self.batch_processor.process_screening_results(threshold)
             
             if results:
                 all_results[threshold] = results
-                print(f"✅ {threshold}: {len(results)}个ETF计算完成")
+                print(f"✅ {threshold}: {len(results)}个ETF增量更新完成")
+                
+                # 显示增量更新统计
+                cache_hits = len([r for r in results if r.get('data_source') == 'cache'])
+                incremental_updates = len([r for r in results if r.get('data_source') == 'incremental_update'])
+                full_calculations = len([r for r in results if r.get('data_source') not in ['cache', 'incremental_update']])
+                
+                print(f"   💾 缓存命中: {cache_hits}")
+                print(f"   ⚡ 增量更新: {incremental_updates}")
+                print(f"   🔄 全量计算: {full_calculations}")
             else:
                 all_results[threshold] = []
                 print(f"❌ {threshold}: 无可用结果")
         
-        # 保存结果
-        if any(all_results.values()):
-            save_stats = self.result_processor.save_screening_batch_results(all_results, self.output_dir)
-        
-        # 显示结果
+        # 显示结果预览（不保存全量历史文件）
         for threshold, results in all_results.items():
             if results:
                 print(f"\n📊 {threshold} 结果预览:")
@@ -216,8 +220,8 @@ class WMAMainController:
         
         return {
             'calculation_results': all_results,
-            'save_statistics': save_stats,
-            'total_etfs': sum(len(results) for results in all_results.values())
+            'total_etfs': sum(len(results) for results in all_results.values()),
+            'mode': 'incremental_update'  # 标记为增量更新模式
         }
     
     def calculate_and_save_historical_wma(self, etf_codes: Optional[List[str]] = None, 
@@ -321,8 +325,8 @@ class WMAMainController:
                         result['historical_analysis'] = {
                             'total_history_days': len(historical_df),
                             'valid_wma_days': historical_df[f'WMA{max(self.config.wma_periods)}'].notna().sum(),
-                            'earliest_date': historical_df['日期'].min(),  # 修复：最早日期应该用min()
-                            'latest_date': historical_df['日期'].max(),    # 修复：最新日期应该用max()
+                            'earliest_date': historical_df['日期'].min(),
+                            'latest_date': historical_df['日期'].max(),
                             'historical_trend_summary': self._analyze_historical_trend(historical_df)
                         }
                         
@@ -335,7 +339,7 @@ class WMAMainController:
     
     def _analyze_historical_trend(self, historical_df: pd.DataFrame) -> Dict:
         """
-        分析历史趋势 - 辅助方法
+        分析历史趋势 - 统一使用下划线字段格式
         
         Args:
             historical_df: 历史WMA数据
@@ -350,15 +354,10 @@ class WMAMainController:
             if len(recent_data) < 10:
                 return {'analysis': '数据不足，无法进行趋势分析'}
             
-            # 修复：统一字段名称，支持两种可能的字段名
-            # 分析WMA5-20差值趋势
-            diff_col = None
-            for possible_col in ['WMA差值5-20', 'WMA_DIFF_5_20']:
-                if possible_col in recent_data.columns:
-                    diff_col = possible_col
-                    break
-                    
-            if diff_col is not None:
+            # 统一使用下划线格式的差值字段
+            diff_col = 'WMA_DIFF_5_20'
+            
+            if diff_col in recent_data.columns:
                 diff_values = recent_data[diff_col].dropna()
                 if len(diff_values) >= 5:
                     positive_count = (diff_values > 0).sum()
@@ -376,10 +375,10 @@ class WMAMainController:
                         'trend_strength': f"{trend_strength*100:.1f}%",
                         'recent_days_analyzed': len(diff_values),
                         'latest_diff': float(diff_values.iloc[0]) if len(diff_values) > 0 else None,
-                        'column_used': diff_col  # 添加使用的列名，便于调试
+                        'column_used': diff_col
                     }
             
-            return {'analysis': '趋势分析数据不完整，找不到差值列'}
+            return {'analysis': '趋势分析数据不完整，找不到WMA_DIFF_5_20列'}
             
         except Exception as e:
             return {'analysis': f'趋势分析失败: {str(e)}', 'error': str(e)}

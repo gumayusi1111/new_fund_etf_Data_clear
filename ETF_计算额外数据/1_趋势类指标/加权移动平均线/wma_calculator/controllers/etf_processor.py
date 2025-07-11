@@ -57,29 +57,32 @@ class WMAETFProcessor:
                 print(f"❌ {etf_code} WMA计算失败")
                 return None
             
-            # 步骤3: 获取价格和日期信息 - 保持原有获取逻辑
+            # 步骤3: 计算完整历史WMA数据（用于缓存）
+            historical_data = self._calculate_historical_wma_data(df, etf_code)
+            
+            # 步骤4: 获取价格和日期信息 - 保持原有获取逻辑
             latest_price = self.data_reader.get_latest_price_info(df)
             date_range = self.data_reader.get_date_range(df)
             
-            # 步骤4: 简化信号分析 - 保持原有简化逻辑
+            # 步骤5: 简化信号分析 - 保持原有简化逻辑
             signals = {
                 'status': 'simplified'  # 标记为简化模式
             }
             
-            # 步骤5: 数据优化信息 - 保持原有数据优化信息
+            # 步骤6: 数据优化信息 - 保持原有数据优化信息
             data_optimization = {
                 'total_available_days': total_rows,
                 'used_days': len(df),
                 'efficiency_gain': f"{((total_rows - len(df)) / total_rows * 100):.1f}%" if total_rows > len(df) else "0.0%"
             }
             
-            # 步骤6: 格式化结果 - 保持原有结果格式
+            # 步骤7: 格式化结果 - 保持原有结果格式
             result = self._format_single_result(
                 etf_code, wma_results, latest_price, date_range, 
-                data_optimization, signals, include_advanced_analysis
+                data_optimization, signals, historical_data, include_advanced_analysis
             )
             
-            # 步骤7: 清理内存 - 保持原有清理逻辑
+            # 步骤8: 清理内存 - 保持原有清理逻辑
             self.data_reader.cleanup_memory(df)
             
             return result
@@ -94,9 +97,34 @@ class WMAETFProcessor:
             print(f"❌ {etf_code} 处理异常: {e}")
             return None
     
+    def _calculate_historical_wma_data(self, df: pd.DataFrame, etf_code: str) -> pd.DataFrame:
+        """
+        计算包含WMA的完整历史数据
+        
+        Args:
+            df: 原始数据DataFrame
+            etf_code: ETF代码
+            
+        Returns:
+            pd.DataFrame: 包含WMA数据的完整历史DataFrame
+        """
+        # 使用历史计算器生成完整的WMA历史数据
+        from ..engines.historical_calculator import WMAHistoricalCalculator
+        historical_calculator = WMAHistoricalCalculator(self.config)
+        
+        # 计算完整历史WMA数据 - 使用正确的方法名
+        wma_df = historical_calculator.calculate_full_historical_wma_optimized(df, etf_code)
+        
+        if wma_df is not None:
+            return wma_df
+        else:
+            # 如果历史计算失败，返回原始数据
+            print(f"⚠️ {etf_code}: 历史WMA计算失败，返回原始数据")
+            return df
+    
     def _format_single_result(self, etf_code: str, wma_results: Dict, latest_price: Dict, 
                             date_range: Dict, data_optimization: Dict, signals: Dict,
-                            include_advanced_analysis: bool = False) -> Dict:
+                            historical_data: pd.DataFrame, include_advanced_analysis: bool = False) -> Dict:
         """
         格式化单个ETF的结果 - 保持原有格式化逻辑
         
@@ -107,6 +135,7 @@ class WMAETFProcessor:
             date_range: 日期范围信息
             data_optimization: 数据优化信息
             signals: 信号分析结果
+            historical_data: 完整历史数据（包含WMA）
             include_advanced_analysis: 是否包含高级分析
             
         Returns:
@@ -121,7 +150,8 @@ class WMAETFProcessor:
             'data_optimization': data_optimization,
             'signals': signals,
             'data_source': 'fresh_calculation',
-            'calculation_timestamp': datetime.now().isoformat()
+            'calculation_timestamp': datetime.now().isoformat(),
+            'historical_data': historical_data  # 添加历史数据用于缓存
         }
         
         # 如果包含高级分析，可以在这里扩展

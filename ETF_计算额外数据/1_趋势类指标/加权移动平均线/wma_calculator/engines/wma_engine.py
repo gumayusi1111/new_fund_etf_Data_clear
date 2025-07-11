@@ -116,12 +116,12 @@ class WMAEngine:
             print(f"⚠️  科学警告: 检测到{prices.isnull().sum()}个缺失价格值")
             prices = prices.ffill()
         
-        # 计算各周期WMA - 保持原有计算逻辑
+        # 计算各周期WMA - 统一使用下划线格式
         for period in self.config.wma_periods:
             try:
                 if period > len(prices):
-                    print(f"  ❌ WMA{period}: 周期({period})超过数据长度({len(prices)})")
-                    wma_results[f'WMA{period}'] = None
+                    print(f"  ❌ WMA_{period}: 周期({period})超过数据长度({len(prices)})")
+                    wma_results[f'WMA_{period}'] = None
                     continue
                 
                 wma_values = self.calculate_single_wma(prices, period)
@@ -133,19 +133,19 @@ class WMAEngine:
                     latest_wma = valid_wma_values.iloc[-1]
                     # 科学精度：保留6位小数 - 保持原有精度
                     latest_wma = round(float(latest_wma), 6)
-                    wma_results[f'WMA{period}'] = latest_wma
+                    wma_results[f'WMA_{period}'] = latest_wma
                     
                     valid_count = len(valid_wma_values)
                     efficiency = ((len(prices) - period + 1) / len(prices)) * 100
                     
-                    print(f"  ✅ WMA{period}: {valid_count} 个有效值 → 最新: {latest_wma:.6f} (效率: {efficiency:.1f}%)")
+                    print(f"  ✅ WMA_{period}: {valid_count} 个有效值 → 最新: {latest_wma:.6f} (效率: {efficiency:.1f}%)")
                 else:
-                    print(f"  ❌ WMA{period}: 无有效数据")
-                    wma_results[f'WMA{period}'] = None
+                    print(f"  ❌ WMA_{period}: 无有效数据")
+                    wma_results[f'WMA_{period}'] = None
                     
             except Exception as e:
-                print(f"  ❌ WMA{period} 计算异常: {str(e)}")
-                wma_results[f'WMA{period}'] = None
+                print(f"  ❌ WMA_{period} 计算异常: {str(e)}")
+                wma_results[f'WMA_{period}'] = None
         
         # 计算WMA差值 - 保持原有差值计算
         wmadiff_results = self.calculate_wma_diff(wma_results)
@@ -153,7 +153,7 @@ class WMAEngine:
         
         # 科学统计：计算成功率 - 保持原有统计
         total_periods = len(self.config.wma_periods)
-        successful_calcs = sum(1 for k, v in wma_results.items() if k.startswith('WMA') and 'WMA差值' not in k and v is not None)
+        successful_calcs = sum(1 for k, v in wma_results.items() if k.startswith('WMA_') and 'DIFF' not in k and v is not None)
         success_rate = (successful_calcs / total_periods) * 100
         
         print(f"🔬 WMA计算完成: {successful_calcs}/{total_periods} 成功 (成功率: {success_rate:.1f}%)")
@@ -162,7 +162,7 @@ class WMAEngine:
     
     def calculate_wma_diff(self, wma_results: Dict[str, Optional[float]]) -> Dict[str, Optional[float]]:
         """
-        计算WMA差值指标 - 保持原有完整逻辑
+        计算WMA差值指标 - 统一使用下划线格式
         
         Args:
             wma_results: WMA计算结果
@@ -173,16 +173,16 @@ class WMAEngine:
         print("🔬 开始计算WMA差值指标...")
         wmadiff_results = {}
         
-        # 科学配置：差值组合 - 保持原有差值组合
+        # 科学配置：差值组合 - 统一使用下划线格式
         diff_pairs = [
-            (5, 20, "WMA差值5-20", "WMA_DIFF_5_20"),    # 核心趋势指标
-            (3, 5, "WMA差值3-5", "WMA_DIFF_3_5"),      # 超短期动量指标
+            (5, 20, "WMA_DIFF_5_20"),    # 核心趋势指标
+            (3, 5, "WMA_DIFF_3_5"),      # 超短期动量指标
         ]
         
-        for short_period, long_period, diff_key, alt_key in diff_pairs:
+        for short_period, long_period, diff_key in diff_pairs:
             try:
-                short_wma = wma_results.get(f'WMA{short_period}')
-                long_wma = wma_results.get(f'WMA{long_period}')
+                short_wma = wma_results.get(f'WMA_{short_period}')
+                long_wma = wma_results.get(f'WMA_{long_period}')
                 
                 if short_wma is not None and long_wma is not None:
                     # 科学计算：短期WMA - 长期WMA - 保持原有公式
@@ -190,9 +190,7 @@ class WMAEngine:
                     
                     # 科学精度：保留6位小数 - 保持原有精度
                     diff_value = round(diff_value, 6)
-                    # 使用两种命名约定保存结果 - 确保兼容性
-                    wmadiff_results[diff_key] = diff_value  # 原始命名
-                    wmadiff_results[alt_key] = diff_value   # 新命名
+                    wmadiff_results[diff_key] = diff_value
                     
                     # 科学解释 - 保持原有解释逻辑
                     trend_strength = abs(diff_value)
@@ -206,13 +204,11 @@ class WMAEngine:
                     print(f"  ✅ {diff_key}: {diff_value:.6f} → {trend_desc}")
                 else:
                     wmadiff_results[diff_key] = None
-                    wmadiff_results[alt_key] = None
-                    print(f"  ❌ {diff_key}: 缺少必要的WMA数据 (WMA{short_period}: {short_wma}, WMA{long_period}: {long_wma})")
+                    print(f"  ❌ {diff_key}: 缺少必要的WMA数据 (WMA_{short_period}: {short_wma}, WMA_{long_period}: {long_wma})")
                     
             except Exception as e:
                 print(f"  ❌ {diff_key} 计算异常: {str(e)}")
                 wmadiff_results[diff_key] = None
-                wmadiff_results[alt_key] = None
         
         # 计算相对差值百分比 - 保持原有相对差值计算
         self._calculate_relative_wmadiff(wma_results, wmadiff_results)
@@ -221,32 +217,27 @@ class WMAEngine:
     
     def _calculate_relative_wmadiff(self, wma_results: Dict, wmadiff_results: Dict):
         """
-        计算相对WMA差值百分比 - 保持原有计算逻辑
+        计算相对WMA差值百分比 - 统一使用下划线格式
         
         Args:
             wma_results: WMA原始结果
             wmadiff_results: WMA差值结果 (会被修改)
         """
         try:
-            # 计算WMA5-20的相对差值百分比 - 保持原有计算
-            if (wmadiff_results.get('WMA差值5-20') is not None or wmadiff_results.get('WMA_DIFF_5_20') is not None) and wma_results.get('WMA20') is not None:
-                # 使用可用的差值
-                diff_abs = wmadiff_results.get('WMA差值5-20', wmadiff_results.get('WMA_DIFF_5_20'))
-                wma20 = wma_results['WMA20']
+            # 计算WMA5-20的相对差值百分比 - 统一使用下划线格式
+            if wmadiff_results.get('WMA_DIFF_5_20') is not None and wma_results.get('WMA_20') is not None:
+                diff_abs = wmadiff_results['WMA_DIFF_5_20']
+                wma_20 = wma_results['WMA_20']
                 
-                if wma20 != 0:
-                    relative_diff_pct = (diff_abs / wma20) * 100
-                    # 使用两种命名约定保存结果 - 确保兼容性
-                    wmadiff_results['WMA差值5-20(%)'] = round(relative_diff_pct, 4)
+                if wma_20 != 0:
+                    relative_diff_pct = (diff_abs / wma_20) * 100
                     wmadiff_results['WMA_DIFF_5_20_PCT'] = round(relative_diff_pct, 4)
-                    print(f"  ✅ WMA差值5-20(%): {relative_diff_pct:.4f}% (相对差值)")
+                    print(f"  ✅ WMA_DIFF_5_20_PCT: {relative_diff_pct:.4f}% (相对差值)")
                 else:
-                    wmadiff_results['WMA差值5-20(%)'] = None
                     wmadiff_results['WMA_DIFF_5_20_PCT'] = None
                     
         except Exception as e:
             print(f"  ⚠️  相对差值计算警告: {str(e)}")
-            wmadiff_results['WMA差值5-20(%)'] = None
             wmadiff_results['WMA_DIFF_5_20_PCT'] = None
     
     def verify_wma_calculation(self, prices: pd.Series, period: int, expected_wma: float) -> Tuple[bool, float]:

@@ -25,6 +25,9 @@ class WMAHistoricalCalculator:
             config: WMA配置对象
         """
         self.config = config
+        # 初始化WMA引擎
+        from .wma_engine import WMAEngine
+        self.wma_engine = WMAEngine(config)
         print("🚀 WMA历史数据计算引擎初始化完成 (超高性能版)")
     
     def calculate_full_historical_wma_optimized(self, df: pd.DataFrame, etf_code: str) -> Optional[pd.DataFrame]:
@@ -55,34 +58,22 @@ class WMAHistoricalCalculator:
             
             # Step 3: 批量计算所有WMA（使用向量化计算）
             for period in self.config.wma_periods:
-                # 🚀 使用pandas rolling + apply 实现WMA向量化计算
-                weights = np.arange(1, period + 1, dtype=np.float64)
-                weights_sum = weights.sum()
-                
-                def wma_calc(window):
-                    if len(window) == period:
-                        return np.dot(window.values, weights) / weights_sum
-                    return np.nan
-                
-                # 向量化计算整个序列的WMA
-                wma_series = prices.rolling(window=period, min_periods=period).apply(
-                    wma_calc, raw=False
-                )
-                
-                result_df[f'WMA{period}'] = wma_series.round(6)
+                # 计算单个WMA周期
+                wma_values = self.wma_engine.calculate_single_wma(prices, period)
+                result_df[f'WMA_{period}'] = wma_values
             
-            # Step 4: 计算WMA差值指标（向量化）
-            if 'WMA5' in result_df.columns and 'WMA20' in result_df.columns:
-                result_df['WMA差值5-20'] = (result_df['WMA5'] - result_df['WMA20']).round(6)
+            # Step 4: 计算WMA差值指标（向量化）- 统一使用下划线格式
+            if 'WMA_5' in result_df.columns and 'WMA_20' in result_df.columns:
+                result_df['WMA_DIFF_5_20'] = (result_df['WMA_5'] - result_df['WMA_20']).round(6)
                 
-                # 计算相对差值百分比
-                mask = result_df['WMA20'] != 0
-                result_df.loc[mask, 'WMA差值5-20(%)'] = (
-                    (result_df.loc[mask, 'WMA差值5-20'] / result_df.loc[mask, 'WMA20']) * 100
+                # 计算相对差值百分比（安全除法）
+                mask = result_df['WMA_20'] != 0
+                result_df.loc[mask, 'WMA_DIFF_5_20_PCT'] = (
+                    (result_df.loc[mask, 'WMA_DIFF_5_20'] / result_df.loc[mask, 'WMA_20']) * 100
                 ).round(4)
             
-            if 'WMA3' in result_df.columns and 'WMA5' in result_df.columns:
-                result_df['WMA差值3-5'] = (result_df['WMA3'] - result_df['WMA5']).round(6)
+            if 'WMA_3' in result_df.columns and 'WMA_5' in result_df.columns:
+                result_df['WMA_DIFF_3_5'] = (result_df['WMA_3'] - result_df['WMA_5']).round(6)
             
             # Step 5: 格式化日期格式，确保与SMA系统一致（YYYY-MM-DD格式）
             if '日期' in result_df.columns:
@@ -92,7 +83,7 @@ class WMAHistoricalCalculator:
             result_df = result_df.sort_values('日期', ascending=False).reset_index(drop=True)
             
             # 计算有效WMA数据行数
-            valid_wma_count = result_df[f'WMA{max(self.config.wma_periods)}'].notna().sum()
+            valid_wma_count = result_df[f'WMA_{max(self.config.wma_periods)}'].notna().sum()
             total_rows = len(result_df)
             
             print(f"   ✅ {etf_code}: 超高性能计算完成 - {valid_wma_count}/{total_rows}行有效WMA数据")

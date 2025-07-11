@@ -166,14 +166,14 @@ class WMAResultProcessor:
                             wma_val = wma_values.get(f'WMA_{period}')
                         row[f'WMA{period}'] = round(wma_val, 6) if wma_val is not None else ''
                     
-                    # WMA差值指标 - 修复字段命名问题
-                    wmadiff_mappings = [
-                        (['WMA差值5-20', 'WMA_DIFF_5_20'], 'WMA差值5-20'),
-                        (['WMA差值3-5', 'WMA_DIFF_3_5'], 'WMA差值3-5'),
-                        (['WMA差值5-20(%)', 'WMA_DIFF_5_20_PCT'], 'WMA差值5-20(%)')
+                    # WMA差值指标 - 统一使用下划线格式
+                    diff_indicators = [
+                        ('WMA_DIFF_5_20', 'WMA差值5-20'),
+                        ('WMA_DIFF_3_5', 'WMA差值3-5'),
+                        ('WMA_DIFF_5_20_PCT', 'WMA差值5-20(%)')
                     ]
                     
-                    for possible_keys, csv_column_name in wmadiff_mappings:
+                    for possible_keys, csv_column_name in diff_indicators:
                         diff_val = None
                         # 尝试多个可能的字段名
                         for key in possible_keys:
@@ -259,39 +259,27 @@ class WMAResultProcessor:
                             print(f" WMA{period}:{wma_val:.3f}", end="")
                     print()
                     
-                    # 显示WMA差值信息 - 支持多种可能的字段名
+                    # 显示WMA差值信息 - 统一使用下划线格式
                     wma_values = result['wma_values']
                     
                     # 尝试多种可能的差值字段名
-                    wmadiff_5_20 = None
-                    for diff_key in ['WMA差值5-20', 'WMA_DIFF_5_20']:
-                        if diff_key in wma_values:
-                            wmadiff_5_20 = wma_values[diff_key]
-                            break
-                    
-                    # 尝试多种可能的百分比字段名
-                    wmadiff_5_20_pct = None
-                    for pct_key in ['WMA差值5-20(%)', 'WMA_DIFF_5_20_PCT']:
-                        if pct_key in wma_values:
-                            wmadiff_5_20_pct = wma_values[pct_key]
-                            break
+                    wmadiff_5_20 = wma_values.get('WMA_DIFF_5_20')
+                    wmadiff_5_20_pct = wma_values.get('WMA_DIFF_5_20_PCT')
                     
                     if wmadiff_5_20 is not None:
-                        trend_indicator = "↗️" if wmadiff_5_20 > 0 else ("↘️" if wmadiff_5_20 < 0 else "➡️")
-                        # 如果百分比值不可用，计算它
+                        # 计算相对差值百分比（如果没有现成的）
                         if wmadiff_5_20_pct is None:
-                            wma20 = None
-                            for key_format in ['WMA20', 'WMA_20']:
-                                wma20 = wma_values.get(key_format)
-                                if wma20 is not None:
-                                    break
-                            
-                            if wma20 and wma20 != 0:
-                                wmadiff_5_20_pct = (wmadiff_5_20 / wma20) * 100
-                            else:
-                                wmadiff_5_20_pct = 0.0
+                            wma_20 = wma_values.get('WMA_20')
+                            if wma_20 and wma_20 != 0:
+                                wmadiff_5_20_pct = (wmadiff_5_20 / wma_20) * 100
                         
-                        print(f"   📊 WMA差值: {wmadiff_5_20:+.6f} ({wmadiff_5_20_pct:+.2f}%) {trend_indicator}")
+                        if wmadiff_5_20_pct is not None:
+                            trend_indicator = "↗️" if wmadiff_5_20 > 0 else "↘️" if wmadiff_5_20 < 0 else "➡️"
+                            print(f"   📊 WMA差值: {wmadiff_5_20:+.6f} ({wmadiff_5_20_pct:+.2f}%) {trend_indicator}")
+                        else:
+                            print(f"   📊 WMA差值: {wmadiff_5_20:+.6f}")
+                    else:
+                        print("   📊 WMA差值: 数据不足")
                 
                 except KeyError as e:
                     print(f"\n{i}. ❌ 无法显示ETF {result.get('etf_code', 'Unknown')}: 缺少关键字段 {str(e)}")
