@@ -51,7 +51,7 @@ class HistoricalCalculator:
                 result_df[col_name] = diff_series
             
             # 按时间倒序排列
-            result_df = result_df.sort_values('日期', ascending=False).reset_index(drop=True)
+            result_df = result_df.sort_values('date', ascending=False).reset_index(drop=True)
             
             return result_df
             
@@ -241,8 +241,8 @@ class HistoricalCalculator:
                     quality_score -= min(price_na_count * 5, 30)
             
             # 检查日期连续性
-            if '日期' in df.columns and len(df) > 1:
-                date_gaps = self._check_date_continuity(df['日期'])
+            if 'date' in df.columns and len(df) > 1:
+                date_gaps = self._check_date_continuity(df['date'])
                 if date_gaps > 0:
                     issues.append(f'日期间隔{date_gaps}处')
                     quality_score -= min(date_gaps * 2, 20)

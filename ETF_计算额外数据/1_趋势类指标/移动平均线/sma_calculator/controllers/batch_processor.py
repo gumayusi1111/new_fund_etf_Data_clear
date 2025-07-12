@@ -216,15 +216,15 @@ class BatchProcessor:
             
             # 构建最新价格信息
             latest_price = {
-                'date': str(latest_row['日期']),
-                'close': float(latest_row['MA5']) if pd.notna(latest_row['MA5']) else 0.0,
+                'date': str(latest_row['date']),
+                'close': float(latest_row['SMA_5']) if pd.notna(latest_row['SMA_5']) else 0.0,
                 'change_pct': 0.0  # 从缓存暂时无法计算涨跌幅
             }
             
             # 构建SMA值
             sma_values = {}
             for period in self.etf_processor.config.sma_periods:
-                sma_col = f'MA{period}'
+                sma_col = f'SMA_{period}'
                 if sma_col in cached_df.columns:
                     sma_val = latest_row[sma_col]
                     if pd.notna(sma_val):
@@ -232,9 +232,9 @@ class BatchProcessor:
             
             # 差值指标
             diff_cols = {
-                'SMA差值5-20': 'SMA_DIFF_5_20',
-                'SMA差值5-10': 'SMA_DIFF_5_10', 
-                'SMA差值5-20(%)': 'SMA_DIFF_5_20_PCT'
+                'SMA_DIFF_5_20': 'SMA_DIFF_5_20',
+                'SMA_DIFF_5_10': 'SMA_DIFF_5_10', 
+                'SMA_DIFF_5_20_PCT': 'SMA_DIFF_5_20_PCT'
             }
             
             for cache_col, result_key in diff_cols.items():

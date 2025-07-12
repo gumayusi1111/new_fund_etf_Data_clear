@@ -307,7 +307,7 @@ class EMABatchProcessor:
                     source_df, _ = source_data
                     latest_source_row = source_df.iloc[0]  # 最新数据
                     price_info = {
-                        'latest_date': str(latest_row['日期']),
+                        'latest_date': str(latest_row['date']),
                         'latest_price': float(latest_source_row['收盘价']),
                         'volume': int(latest_source_row['成交量']) if '成交量' in source_df.columns else 0,
                         'high': float(latest_source_row['最高价']) if '最高价' in source_df.columns else 0,
@@ -317,7 +317,7 @@ class EMABatchProcessor:
                 else:
                     # 如果无法读取源文件，使用默认值
                     price_info = {
-                        'latest_date': str(latest_row['日期']),
+                        'latest_date': str(latest_row['date']),
                         'latest_price': 0.0,
                         'volume': 0,
                         'high': 0.0,
@@ -327,7 +327,7 @@ class EMABatchProcessor:
             except Exception as e:
                 # 如果出错，使用默认值
                 price_info = {
-                    'latest_date': str(latest_row['日期']),
+                    'latest_date': str(latest_row['date']),
                     'latest_price': 0.0,
                     'volume': 0,
                     'high': 0.0,

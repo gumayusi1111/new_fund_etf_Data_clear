@@ -13,6 +13,7 @@ from typing import List, Optional, Dict
 
 
 class EMAConfig:
+    """EMA配置管理类 - 重构版（与WMA/SMA保持一致）"""
     
     @staticmethod
     def normalize_etf_code(etf_code: str) -> str:
@@ -57,7 +58,6 @@ class EMAConfig:
             return etf_code
             
         return str(etf_code).replace('.SH', '').replace('.SZ', '')
-    """EMA配置管理类 - 重构版（与WMA/SMA保持一致）"""
     
     # EMA系统专属参数设置
     EMA_SYSTEM_PARAMS = {

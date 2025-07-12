@@ -203,8 +203,13 @@ class EMACacheManager:
             if df.empty:
                 return None
             
-            # 获取第一行的日期（最新日期）
-            latest_date = df.iloc[0]['日期']
+            # 获取第一行的日期（最新日期）- 兼容性检测
+            if 'date' in df.columns:
+                latest_date = df.iloc[0]['date']
+            elif '日期' in df.columns:
+                latest_date = df.iloc[0]['日期']
+            else:
+                raise KeyError("缓存文件中未找到日期字段 ('date' 或 '日期')")
             
             # 处理日期格式转换
             if pd.isna(latest_date):
@@ -234,6 +239,10 @@ class EMACacheManager:
             df = pd.read_csv(cache_file, encoding='utf-8')
             if df.empty:
                 return None
+            
+            # 字段名兼容性处理：标准化为英文字段名
+            if '日期' in df.columns and 'date' not in df.columns:
+                df = df.rename(columns={'日期': 'date'})
             
             return df
             

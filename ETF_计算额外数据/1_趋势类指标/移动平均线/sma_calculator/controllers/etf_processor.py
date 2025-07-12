@@ -191,11 +191,11 @@ class ETFProcessor:
         """计算SMA差值指标"""
         try:
             # SMA差值5-20
-            if 'MA5' in result_df.columns and 'MA20' in result_df.columns:
-                ma5 = result_df['MA5']
-                ma20 = result_df['MA20']
+            if 'SMA_5' in result_df.columns and 'SMA_20' in result_df.columns:
+                ma5 = result_df['SMA_5']
+                ma20 = result_df['SMA_20']
                 
-                result_df['SMA差值5-20'] = np.where(
+                result_df['SMA_DIFF_5_20'] = np.where(
                     (ma5.notna()) & (ma20.notna()),
                     (ma5 - ma20).round(6),
                     ''
@@ -203,18 +203,18 @@ class ETFProcessor:
                 
                 # 安全的百分比计算，避免除零风险
                 ma20_safe = ma20.replace(0, np.nan)  # 将0替换为NaN
-                result_df['SMA差值5-20(%)'] = np.where(
+                result_df['SMA_DIFF_5_20_PCT'] = np.where(
                     (ma5.notna()) & (ma20_safe.notna()),
                     ((ma5 - ma20_safe) / ma20_safe * 100).round(4),
                     ''
                 )
             
             # SMA差值5-10
-            if 'MA5' in result_df.columns and 'MA10' in result_df.columns:
-                ma5 = result_df['MA5']
-                ma10 = result_df['MA10']
+            if 'SMA_5' in result_df.columns and 'SMA_10' in result_df.columns:
+                ma5 = result_df['SMA_5']
+                ma10 = result_df['SMA_10']
                 
-                result_df['SMA差值5-10'] = np.where(
+                result_df['SMA_DIFF_5_10'] = np.where(
                     (ma5.notna()) & (ma10.notna()),
                     (ma5 - ma10).round(6),
                     ''

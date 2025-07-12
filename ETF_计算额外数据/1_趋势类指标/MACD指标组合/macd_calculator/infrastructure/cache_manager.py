@@ -362,6 +362,10 @@ class MACDCacheManager:
             if df.empty:
                 return None
             
+            # 字段名兼容性处理：标准化为英文字段名
+            if '日期' in df.columns and 'date' not in df.columns:
+                df = df.rename(columns={'日期': 'date'})
+            
             return df
             
         except Exception as e:
