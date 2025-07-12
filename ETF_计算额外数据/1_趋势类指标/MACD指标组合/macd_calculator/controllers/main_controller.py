@@ -361,26 +361,31 @@ class MACDMainController:
         print(f"🚀 开始历史MACD数据计算和保存...")
         print(f"📊 门槛设置: {thresholds}")
         
-        # 获取ETF列表
-        if etf_codes is None:
-            etf_codes = self.data_reader.get_available_etfs()
-        
-        print(f"📈 待处理ETF数量: {len(etf_codes)}")
-        
-        # 获取ETF文件路径字典
-        etf_files_dict = {}
-        for etf_code in etf_codes:
-            file_path = self.data_reader.get_etf_file_path(etf_code)
-            if file_path and os.path.exists(file_path):
-                etf_files_dict[etf_code] = file_path
-        
-        print(f"📁 有效ETF文件数量: {len(etf_files_dict)}")
-        
         all_stats = {}
         
-        # 为每个门槛计算历史数据
+        # 为每个门槛分别处理
         for threshold in thresholds:
             print(f"\n📈 计算门槛: {threshold}")
+            
+            # 获取该门槛的ETF列表
+            if etf_codes is None:
+                # 使用ETF初筛结果，而不是所有可用ETF
+                threshold_etf_codes = self.data_reader.get_screening_etf_codes(threshold)
+                print(f"📊 {threshold}: 读取筛选结果...")
+                print(f"📊 {threshold}: 找到 {len(threshold_etf_codes)} 个通过筛选的ETF")
+            else:
+                threshold_etf_codes = etf_codes
+            
+            print(f"📈 {threshold} 待处理ETF数量: {len(threshold_etf_codes)}")
+            
+            # 获取该门槛的ETF文件路径字典
+            etf_files_dict = {}
+            for etf_code in threshold_etf_codes:
+                file_path = self.data_reader.get_etf_file_path(etf_code)
+                if file_path and os.path.exists(file_path):
+                    etf_files_dict[etf_code] = file_path
+            
+            print(f"📁 {threshold} 有效ETF文件数量: {len(etf_files_dict)}")
             
             # 使用历史计算器的批量计算方法
             from ..engines.historical_calculator import MACDHistoricalCalculator
@@ -403,9 +408,12 @@ class MACDMainController:
                 print(f"❌ {threshold}: 历史数据计算失败")
                 all_stats[threshold] = {}
         
+        # 计算总处理ETF数量
+        total_etfs = sum(len(stats.get('etf_codes', [])) for stats in all_stats.values() if stats)
+        
         return {
             'processing_statistics': all_stats,
-            'total_etfs_processed': len(etf_files_dict),
+            'total_etfs_processed': total_etfs,
             'thresholds_processed': thresholds
         }
     

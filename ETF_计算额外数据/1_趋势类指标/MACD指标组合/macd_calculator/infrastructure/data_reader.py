@@ -260,3 +260,81 @@ class MACDDataReader:
             },
             'data_quality': 'valid' if self.validate_etf_data(df, etf_code) else 'invalid'
         }
+    
+    def get_screening_etf_codes(self, threshold: str) -> List[str]:
+        """
+        获取筛选结果的ETF代码列表
+        
+        Args:
+            threshold: 门槛类型 (如: "3000万门槛", "5000万门槛")
+            
+        Returns:
+            List[str]: ETF代码列表
+        """
+        try:
+            # 智能检测项目根目录 - 与其他系统保持一致
+            current_dir = os.getcwd()
+            if "ETF_计算额外数据" in current_dir:
+                project_root = current_dir.split("ETF_计算额外数据")[0]
+            else:
+                project_root = current_dir
+            
+            # 构建筛选结果文件路径
+            screening_file = os.path.join(
+                project_root, "ETF_初筛", "data", threshold, "通过筛选ETF.txt"
+            )
+            
+            if not os.path.exists(screening_file):
+                print(f"❌ 筛选文件不存在: {screening_file}")
+                return []
+            
+            # 读取ETF代码（过滤注释行）
+            with open(screening_file, 'r', encoding='utf-8') as f:
+                etf_codes = [line.strip() for line in f.readlines() 
+                           if line.strip() and not line.strip().startswith('#')]
+            
+            # ETF代码标准化
+            return self._standardize_etf_codes(etf_codes)
+            
+        except FileNotFoundError:
+            print(f"❌ 筛选文件不存在: {screening_file}")
+            return []
+        except UnicodeDecodeError as e:
+            print(f"❌ 筛选文件编码错误: {str(e)}")
+            return []
+        except Exception as e:
+            print(f"❌ 读取筛选结果异常: {str(e)}")
+            return []
+    
+    def _standardize_etf_codes(self, etf_codes: List[str]) -> List[str]:
+        """
+        标准化ETF代码格式
+        
+        Args:
+            etf_codes: 原始ETF代码列表
+            
+        Returns:
+            List[str]: 标准化后的ETF代码列表
+        """
+        standardized_codes = []
+        
+        for code in etf_codes:
+            if code.endswith(('.SH', '.SZ')):
+                standardized_codes.append(code)
+                continue
+            
+            if len(code) == 6 and code.isdigit():
+                # 基于规则判断交易所
+                if code.startswith(('50', '51', '52', '56', '58')):
+                    standardized_codes.append(code + '.SH')
+                elif code.startswith(('15', '16', '18')):
+                    standardized_codes.append(code + '.SZ')
+                else:
+                    # 通过文件存在性判断
+                    for suffix in ['.SH', '.SZ']:
+                        test_code = code + suffix
+                        if self.get_etf_file_path(test_code):
+                            standardized_codes.append(test_code)
+                            break
+        
+        return standardized_codes
