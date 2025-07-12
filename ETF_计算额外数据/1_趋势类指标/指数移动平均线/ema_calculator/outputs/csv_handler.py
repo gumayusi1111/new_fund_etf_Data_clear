@@ -35,20 +35,16 @@ class EMACSVHandler:
             str: CSV头部行
         """
         headers = [
-            'ETF代码', '日期', '收盘价', '涨跌', '涨跌幅%', '成交量'
+            'code', 'date'
         ]
         
         # 添加EMA列
         for period in sorted(self.config.ema_periods):
-            headers.append(f'EMA{period}')
+            headers.append(f'EMA_{period}')
         
         # 添加EMA差值列
         if 12 in self.config.ema_periods and 26 in self.config.ema_periods:
-            headers.extend(['EMA差值12-26', 'EMA差值百分比%'])
-        
-        # 添加EMA动量列
-        if 12 in self.config.ema_periods:
-            headers.append('EMA12动量')
+            headers.extend(['EMA_DIFF_12_26', 'EMA_DIFF_12_26_PCT', 'EMA12_MOMENTUM'])
         
         return ','.join(headers)
     
@@ -72,29 +68,29 @@ class EMACSVHandler:
             # 基础数据
             clean_code = etf_code.replace('.SH', '').replace('.SZ', '')
             row_data.append(clean_code)
-            row_data.append(str(price_info.get('latest_date', '')))
-            row_data.append(f"{price_info.get('latest_price', 0):.3f}")
-            row_data.append(f"{price_info.get('price_change', 0):+.3f}")
-            row_data.append(f"{price_info.get('price_change_pct', 0):+.2f}")
-            row_data.append(str(price_info.get('volume', 0)))
+            
+            # 格式化日期为ISO标准格式
+            date_str = str(price_info.get('latest_date', ''))
+            if len(date_str) == 8 and date_str.isdigit():
+                formatted_date = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
+            else:
+                formatted_date = date_str
+            row_data.append(formatted_date)
             
             # EMA值
             for period in sorted(self.config.ema_periods):
                 ema_key = f'ema_{period}'
                 ema_value = ema_values.get(ema_key, 0)
-                row_data.append(f"{ema_value:.6f}")
+                row_data.append(f"{ema_value:.8f}")
             
-            # EMA差值
+            # EMA差值和动量
             if 12 in self.config.ema_periods and 26 in self.config.ema_periods:
                 diff_value = ema_values.get('ema_diff_12_26', 0)
                 diff_pct = ema_values.get('ema_diff_12_26_pct', 0)
-                row_data.append(f"{diff_value:.6f}")
-                row_data.append(f"{diff_pct:.3f}")
-            
-            # EMA动量
-            if 12 in self.config.ema_periods:
                 momentum = ema_values.get('ema12_momentum', 0)
-                row_data.append(f"{momentum:.6f}")
+                row_data.append(f"{diff_value:.8f}")
+                row_data.append(f"{diff_pct:.8f}")
+                row_data.append(f"{momentum:.8f}")
             
             return ','.join(row_data)
             

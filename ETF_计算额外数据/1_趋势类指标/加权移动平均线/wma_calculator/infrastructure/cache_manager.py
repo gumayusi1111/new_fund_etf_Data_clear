@@ -159,8 +159,8 @@ class WMACacheManager:
             clean_etf_code = etf_code.replace('.SH', '').replace('.SZ', '')
             cache_file = os.path.join(cache_dir, f"{clean_etf_code}.csv")
             
-            if '日期' in df.columns:
-                df = df.sort_values('日期', ascending=False).reset_index(drop=True)
+            if 'date' in df.columns:
+                df = df.sort_values('date', ascending=False).reset_index(drop=True)
             
             df.to_csv(cache_file, index=False, encoding='utf-8')
             
@@ -201,7 +201,7 @@ class WMACacheManager:
                 return None
             
             # 获取第一行的日期（最新日期）
-            latest_date = df.iloc[0]['日期']
+            latest_date = df.iloc[0]['date']
             
             # 使用统一的日期格式化函数
             return normalize_date_format(latest_date)
@@ -279,7 +279,7 @@ class WMACacheManager:
                     return False
                     
                 # ✅ 正确：源文件是按时间倒序排列，最新数据在第一行（除了header）
-                source_latest_date = source_df.iloc[0]['日期']  # 最新数据在第一行
+                source_latest_date = source_df.iloc[0]['date']  # 最新数据在第一行
                 
                 # 使用统一的日期比较函数
                 return compare_dates_safely(cache_latest_date, source_latest_date)

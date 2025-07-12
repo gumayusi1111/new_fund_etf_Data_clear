@@ -74,7 +74,7 @@ class CSVOutputHandler(ICSVHandler):
             clean_etf_code = etf_code.split('.')[0] if '.' in etf_code else etf_code
             
             # 写入CSV头部
-            csv_buffer.write("代码,日期,MA5,MA10,MA20,MA60,SMA差值5-20,SMA差值5-20(%),SMA差值5-10\n")
+            csv_buffer.write("code,date,SMA_5,SMA_10,SMA_20,SMA_60,SMA_DIFF_5_20,SMA_DIFF_5_20_PCT,SMA_DIFF_5_10\n")
             
             # 按日期倒序排列（最新的在前）
             # 检查列名是否存在
@@ -98,7 +98,12 @@ class CSVOutputHandler(ICSVHandler):
                 diff_5_10 = ma5 - ma10 if ma5 and ma10 else 0
                 
                 # 写入数据行
-                csv_buffer.write(f"{clean_etf_code},{date_str},{ma5:.4f},{ma10:.6f},{ma20:.5f},{ma60:.6f},{diff_5_20:+.5f},{diff_5_20_pct:+.4f},{diff_5_10:+.4f}\n")
+                # 转换日期格式为YYYY-MM-DD
+                if len(str(date_str)) == 8:  # YYYYMMDD格式
+                    formatted_date = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
+                else:
+                    formatted_date = str(date_str)
+                csv_buffer.write(f"{clean_etf_code},{formatted_date},{ma5:.8f},{ma10:.8f},{ma20:.8f},{ma60:.8f},{diff_5_20:+.8f},{diff_5_20_pct:+.8f},{diff_5_10:+.8f}\n")
             
             # 获取CSV内容
             csv_content = csv_buffer.getvalue()
@@ -119,7 +124,7 @@ class CSVOutputHandler(ICSVHandler):
             clean_etf_code = etf_code.split('.')[0] if '.' in etf_code else etf_code
             
             # 写入CSV头部
-            csv_buffer.write("代码,日期,MA5,MA10,MA20,MA60,SMA差值5-20,SMA差值5-20(%),SMA差值5-10\n")
+            csv_buffer.write("code,date,SMA_5,SMA_10,SMA_20,SMA_60,SMA_DIFF_5_20,SMA_DIFF_5_20_PCT,SMA_DIFF_5_10\n")
             
             # 按日期倒序排列
             # 检查列名是否存在
@@ -143,7 +148,12 @@ class CSVOutputHandler(ICSVHandler):
                 diff_5_10 = ma5 - ma10 if ma5 and ma10 else 0
                 
                 # 写入数据行
-                csv_buffer.write(f"{clean_etf_code},{date_str},{ma5:.4f},{ma10:.6f},{ma20:.5f},{ma60:.6f},{diff_5_20:+.5f},{diff_5_20_pct:+.4f},{diff_5_10:+.4f}\n")
+                # 转换日期格式为YYYY-MM-DD
+                if len(str(date_str)) == 8:  # YYYYMMDD格式
+                    formatted_date = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
+                else:
+                    formatted_date = str(date_str)
+                csv_buffer.write(f"{clean_etf_code},{formatted_date},{ma5:.8f},{ma10:.8f},{ma20:.8f},{ma60:.8f},{diff_5_20:+.8f},{diff_5_20_pct:+.8f},{diff_5_10:+.8f}\n")
             
             csv_content = csv_buffer.getvalue()
             csv_buffer.close()

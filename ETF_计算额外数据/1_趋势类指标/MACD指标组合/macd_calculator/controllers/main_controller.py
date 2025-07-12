@@ -128,7 +128,7 @@ class MACDMainController:
             
             # 使用默认门槛类型进行缓存
             default_threshold = threshold or "3000万门槛"
-            param_folder = parameter_folder or "标准"
+            param_folder = parameter_folder or self.parameter_folder
             
             # 检查缓存
             if self.cache_manager and self.enable_cache:
@@ -392,13 +392,13 @@ class MACDMainController:
             )
             
             if results:
-                # 保存历史数据文件
+                # 保存历史数据文件到正确的参数文件夹，同时保存到缓存
                 save_stats = historical_calculator.save_historical_results(
-                    results, self.output_dir, threshold
+                    results, self.output_dir, threshold, self.parameter_folder, self.cache_manager
                 )
                 all_stats[threshold] = save_stats
                 
-                print(f"✅ {threshold}: 历史数据计算和保存完成")
+                print(f"✅ {threshold}: 历史数据计算和保存完成 - 参数文件夹: {self.parameter_folder}")
             else:
                 print(f"❌ {threshold}: 历史数据计算失败")
                 all_stats[threshold] = {}

@@ -133,7 +133,7 @@ class WMABatchProcessor:
                 return None
             
             # 确保缓存数据按时间倒序排列，第一行是最新数据
-            cached_df = cached_df.sort_values('日期', ascending=False)
+            cached_df = cached_df.sort_values('date', ascending=False)
             latest_row = cached_df.iloc[0]  # 第一行是最新数据（按时间倒序）
             
             # 提取WMA值
@@ -151,13 +151,13 @@ class WMABatchProcessor:
                 'etf_code': etf_code,
                 'wma_values': wma_values,
                 'latest_price': {
-                    'date': str(latest_row.get('日期', '')),
+                    'date': str(latest_row.get('date', '')),
                     'close': round(float(latest_row.get('收盘价', 0)), 6),
                     'change_pct': round(float(latest_row.get('涨幅%', 0)), 4) if '涨幅%' in latest_row else 0.0
                 },
                 'date_range': {
-                    'start_date': str(cached_df.iloc[-1].get('日期', '')),
-                    'end_date': str(cached_df.iloc[0].get('日期', '')),
+                    'start_date': str(cached_df.iloc[-1].get('date', '')),
+                    'end_date': str(cached_df.iloc[0].get('date', '')),
                     'total_days': len(cached_df)
                 },
                 'data_source': 'cache_hit',
@@ -310,7 +310,7 @@ class WMABatchProcessor:
                     print(f"⚠️ {etf_code}: 创建目录失败 - {str(dir_e)}")
                 
                 # 按时间倒序保存（与原有逻辑一致）
-                df_sorted = df_with_wma.sort_values('日期', ascending=False)
+                df_sorted = df_with_wma.sort_values('date', ascending=False)
                 df_sorted.to_csv(output_file, index=False, encoding='utf-8')
                 
                 file_size = os.path.getsize(output_file)
@@ -376,11 +376,11 @@ class WMABatchProcessor:
                 return None
             
             # 确保日期格式统一为YYYY-MM-DD
-            etf_df['日期'] = pd.to_datetime(etf_df['日期']).dt.strftime('%Y-%m-%d')
-            etf_df = etf_df.sort_values('日期', ascending=False).reset_index(drop=True)
+            etf_df['date'] = pd.to_datetime(etf_df['date']).dt.strftime('%Y-%m-%d')
+            etf_df = etf_df.sort_values('date', ascending=False).reset_index(drop=True)
             
             # 3. 检查是否有新数据
-            latest_source_date = etf_df.iloc[0]['日期']
+            latest_source_date = etf_df.iloc[0]['date']
             if str(latest_source_date) <= str(cached_latest_date):
                 # 没有新数据，直接返回缓存结果
                 if not (self.config and self.config.performance_mode):
@@ -394,7 +394,7 @@ class WMABatchProcessor:
                 return self._process_new_etf(etf_code, threshold, False)
             
             # 5. 找出新增的数据行
-            new_data_df = etf_df[etf_df['日期'] > cached_latest_date].copy()
+            new_data_df = etf_df[etf_df['date'] > cached_latest_date].copy()
             
             if new_data_df.empty:
                 # 没有新数据
@@ -427,13 +427,13 @@ class WMABatchProcessor:
             
             # 9. 合并新旧数据
             # 移除缓存中与新数据日期重复的行（如果有）
-            cached_df = cached_df[~cached_df['日期'].isin(new_wma_df['日期'])]
+            cached_df = cached_df[~cached_df['date'].isin(new_wma_df['date'])]
             
             # 合并数据（新数据在前）
             updated_df = pd.concat([new_wma_df, cached_df], ignore_index=True)
             
             # 确保按日期倒序排列
-            updated_df = updated_df.sort_values('日期', ascending=False).reset_index(drop=True)
+            updated_df = updated_df.sort_values('date', ascending=False).reset_index(drop=True)
             
             # 10. 更新缓存
             success = self.cache_manager.save_etf_cache(etf_code, updated_df, threshold)
@@ -445,7 +445,7 @@ class WMABatchProcessor:
             
             # 构建最新价格信息
             latest_price = {
-                'date': str(latest_row['日期']),
+                'date': str(latest_row['date']),
                 'close': float(etf_df.iloc[0]['收盘价']) if '收盘价' in etf_df.columns else 0.0,
                 'change_pct': float(etf_df.iloc[0]['涨幅%']) if '涨幅%' in etf_df.columns else 0.0
             }
@@ -509,7 +509,7 @@ class WMABatchProcessor:
                 
                 # 🔧 修复：统一日期格式处理
                 # 源文件日期格式通常是YYYYMMDD，需要转换为YYYY-MM-DD进行比较
-                source_date_raw = str(source_df.iloc[0]['日期'])
+                source_date_raw = str(source_df.iloc[0]['date'])
                 if len(source_date_raw) == 8 and source_date_raw.isdigit():
                     # YYYYMMDD格式，转换为YYYY-MM-DD
                     latest_source_date = f"{source_date_raw[:4]}-{source_date_raw[4:6]}-{source_date_raw[6:8]}"
@@ -570,12 +570,12 @@ class WMABatchProcessor:
                 return None
             
             # 确保缓存数据按时间倒序排列
-            cached_df = cached_df.sort_values('日期', ascending=False).reset_index(drop=True)
+            cached_df = cached_df.sort_values('date', ascending=False).reset_index(drop=True)
             latest_row = cached_df.iloc[0]  # 第一行是最新数据
             
             # 构建最新价格信息
             latest_price = {
-                'date': str(latest_row['日期']),
+                'date': str(latest_row['date']),
                 'close': 0.0,
                 'change_pct': 0.0
             }

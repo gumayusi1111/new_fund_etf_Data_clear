@@ -72,28 +72,28 @@ class SMAHistoricalCalculator:
                 print(f"   ❌ {etf_code}: 价格数据类型转换失败: {str(e)}")
                 return None
             
-            # Step 2: 创建结果DataFrame - 格式与现有SMA系统完全一致
+            # Step 2: 创建结果DataFrame - 使用英文字段名标准化格式
             clean_etf_code = etf_code.replace('.SH', '').replace('.SZ', '')
             result_df = pd.DataFrame({
-                '代码': clean_etf_code,  # 中文字段名，与现有系统一致
-                '日期': df_calc['date']
+                'code': clean_etf_code,  # 标准化英文字段名
+                'date': df_calc['date']
             })
             
-            # Step 3: 批量计算所有SMA（向量化，与现有精度完全一致）
+            # Step 3: 批量计算所有SMA（向量化，使用8位小数精度标准）
             for period in self.config.sma_periods:
-                # 使用与现有系统完全相同的计算方式和精度
+                # 使用标准化8位小数精度
                 sma_series = prices.rolling(window=period, min_periods=period).mean()
-                result_df[f'MA{period}'] = sma_series.round(6)  # 6位小数，与现有系统一致
+                result_df[f'SMA_{period}'] = sma_series.round(8)  # 8位小数，标准化精度
             
             # Step 4: 计算SMA差值指标（向量化）- 与现有系统完全一致
             self._calculate_sma_differences_optimized(result_df)
             
-            # Step 5: 最终按时间倒序排列（新到旧）- 与现有系统一致
-            result_df = result_df.sort_values('日期', ascending=False).reset_index(drop=True)
+            # Step 5: 最终按时间倒序排列（新到旧）- 使用英文字段名
+            result_df = result_df.sort_values('date', ascending=False).reset_index(drop=True)
             
             # 计算有效SMA数据行数
             max_period = max(self.config.sma_periods)
-            valid_sma_count = result_df[f'MA{max_period}'].notna().sum()
+            valid_sma_count = result_df[f'SMA_{max_period}'].notna().sum()
             total_rows = len(result_df)
             
             print(f"   ✅ {etf_code}: 超高性能计算完成 - {valid_sma_count}/{total_rows}行有效SMA数据")
@@ -107,39 +107,39 @@ class SMAHistoricalCalculator:
     def _calculate_sma_differences_optimized(self, result_df: pd.DataFrame):
         """
         计算SMA差值指标 - 向量化优化版本
-        完全保持与现有SMA系统相同的字段名、精度和计算逻辑
+        使用标准化英文字段名和8位小数精度
         """
         try:
-            # SMA差值5-20（与现有系统完全一致）
-            if 'MA5' in result_df.columns and 'MA20' in result_df.columns:
-                ma5 = result_df['MA5']
-                ma20 = result_df['MA20']
+            # SMA差值5-20（标准化英文字段名和8位小数精度）
+            if 'SMA_5' in result_df.columns and 'SMA_20' in result_df.columns:
+                ma5 = result_df['SMA_5']
+                ma20 = result_df['SMA_20']
                 
-                # 字段名与现有系统完全一致
-                result_df['SMA差值5-20'] = np.where(
+                # 标准化英文字段名
+                result_df['SMA_DIFF_5_20'] = np.where(
                     (ma5.notna()) & (ma20.notna()),
-                    (ma5 - ma20).round(6),  # 6位小数，与现有系统一致
-                    ''  # 空值处理与现有系统一致
+                    (ma5 - ma20).round(8),  # 8位小数，标准化精度
+                    ''  # 空值处理
                 )
                 
-                # 安全的百分比计算，避免除零风险（与现有系统完全一致）
+                # 安全的百分比计算，避免除零风险
                 ma20_safe = ma20.replace(0, np.nan)  # 将0替换为NaN
-                result_df['SMA差值5-20(%)'] = np.where(
+                result_df['SMA_DIFF_5_20_PCT'] = np.where(
                     (ma5.notna()) & (ma20_safe.notna()),
-                    ((ma5 - ma20_safe) / ma20_safe * 100).round(4),  # 4位小数，与现有系统一致
-                    ''  # 空值处理与现有系统一致
+                    ((ma5 - ma20_safe) / ma20_safe * 100).round(8),  # 8位小数，标准化精度
+                    ''  # 空值处理
                 )
             
-            # SMA差值5-10（与现有系统完全一致）
-            if 'MA5' in result_df.columns and 'MA10' in result_df.columns:
-                ma5 = result_df['MA5']
-                ma10 = result_df['MA10']
+            # SMA差值5-10（标准化英文字段名和8位小数精度）
+            if 'SMA_5' in result_df.columns and 'SMA_10' in result_df.columns:
+                ma5 = result_df['SMA_5']
+                ma10 = result_df['SMA_10']
                 
-                # 字段名与现有系统完全一致
-                result_df['SMA差值5-10'] = np.where(
+                # 标准化英文字段名
+                result_df['SMA_DIFF_5_10'] = np.where(
                     (ma5.notna()) & (ma10.notna()),
-                    (ma5 - ma10).round(6),  # 6位小数，与现有系统一致
-                    ''  # 空值处理与现有系统一致
+                    (ma5 - ma10).round(8),  # 8位小数，标准化精度
+                    ''  # 空值处理
                 )
                 
         except Exception as e:

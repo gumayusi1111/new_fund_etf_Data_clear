@@ -74,12 +74,12 @@ class MACDCSVHandler:
             格式化后的DataFrame
         """
         try:
-            # 选择输出列
-            output_columns = ['代码', '日期', 'DIF', 'DEA', 'MACD']
+            # 选择输出列 - 使用标准化英文字段名
+            output_columns = ['code', 'date', 'MACD', 'SIGNAL', 'HISTOGRAM']
             
             # 添加可选列
-            optional_columns = ['EMA_FAST', 'EMA_SLOW', 'DIF_DEA_DIFF', 
-                              'DIF_MOMENTUM', 'DEA_MOMENTUM']
+            optional_columns = ['EMA_FAST', 'EMA_SLOW', 'MACD_SIGNAL_DIFF', 
+                              'MACD_MOMENTUM', 'SIGNAL_MOMENTUM']
             
             for col in optional_columns:
                 if col in df.columns:
@@ -89,9 +89,9 @@ class MACDCSVHandler:
             available_columns = [col for col in output_columns if col in df.columns]
             result_df = df[available_columns].copy()
             
-            # 格式化数值精度
-            numeric_columns = ['DIF', 'DEA', 'MACD', 'EMA_FAST', 'EMA_SLOW', 
-                             'DIF_DEA_DIFF', 'DIF_MOMENTUM', 'DEA_MOMENTUM']
+            # 格式化数值精度 - 使用标准化字段名
+            numeric_columns = ['MACD', 'SIGNAL', 'HISTOGRAM', 'EMA_FAST', 'EMA_SLOW', 
+                             'MACD_SIGNAL_DIFF', 'MACD_MOMENTUM', 'SIGNAL_MOMENTUM']
             
             for col in numeric_columns:
                 if col in result_df.columns:

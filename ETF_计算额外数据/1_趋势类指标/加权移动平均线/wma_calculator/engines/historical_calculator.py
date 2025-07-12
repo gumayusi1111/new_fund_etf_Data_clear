@@ -47,42 +47,57 @@ class WMAHistoricalCalculator:
             print(f"   🚀 {etf_code}: 超高性能WMA计算...")
             
             # Step 1: 数据准备（按时间正序计算）
-            df_calc = df.sort_values('日期', ascending=True).copy().reset_index(drop=True)
+            df_calc = df.sort_values('date', ascending=True).copy().reset_index(drop=True)
             prices = df_calc['收盘价'].astype(float)
             
             # Step 2: 创建结果DataFrame - 只保留必要字段（与SMA格式一致）
             # 统一ETF代码格式：去除.SH/.SZ后缀
             clean_etf_code = etf_code.replace('.SH', '').replace('.SZ', '')
             result_df = pd.DataFrame({
-                '代码': [clean_etf_code] * len(df_calc),
-                '日期': df_calc['日期']
+                'code': [clean_etf_code] * len(df_calc),
+                'date': df_calc['date']
             })
             
             # Step 3: 批量计算所有WMA（使用向量化计算）
             for period in self.config.wma_periods:
                 # 计算单个WMA周期
                 wma_values = self.wma_engine.calculate_single_wma(prices, period)
-                result_df[f'WMA_{period}'] = wma_values
+                # 保持8位小数精度统一
+                result_df[f'WMA_{period}'] = wma_values.round(8)
             
             # Step 4: 计算WMA差值指标（向量化）- 统一使用下划线格式
             if 'WMA_5' in result_df.columns and 'WMA_20' in result_df.columns:
-                result_df['WMA_DIFF_5_20'] = (result_df['WMA_5'] - result_df['WMA_20']).round(6)
+                result_df['WMA_DIFF_5_20'] = (result_df['WMA_5'] - result_df['WMA_20']).round(8)
                 
                 # 计算相对差值百分比（安全除法）
                 mask = result_df['WMA_20'] != 0
                 result_df.loc[mask, 'WMA_DIFF_5_20_PCT'] = (
                     (result_df.loc[mask, 'WMA_DIFF_5_20'] / result_df.loc[mask, 'WMA_20']) * 100
-                ).round(4)
+                ).round(8)
             
             if 'WMA_3' in result_df.columns and 'WMA_5' in result_df.columns:
-                result_df['WMA_DIFF_3_5'] = (result_df['WMA_3'] - result_df['WMA_5']).round(6)
+                result_df['WMA_DIFF_3_5'] = (result_df['WMA_3'] - result_df['WMA_5']).round(8)
             
-            # Step 5: 格式化日期格式，确保与SMA系统一致（YYYY-MM-DD格式）
-            if '日期' in result_df.columns:
-                result_df['日期'] = pd.to_datetime(result_df['日期']).dt.strftime('%Y-%m-%d')
+            # Step 5: 转换日期格式为ISO标准格式 (YYYY-MM-DD)
+            # 处理不同的日期格式
+            if df_calc['date'].dtype in ['int64', 'int32']:
+                # 处理整数日期格式 YYYYMMDD
+                date_series = pd.to_datetime(df_calc['date'], format='%Y%m%d', errors='coerce')
+            elif df_calc['date'].dtype == 'object':
+                # 处理字符串日期格式
+                date_series = pd.to_datetime(df_calc['date'], format='%Y-%m-%d', errors='coerce')
+                if date_series.isna().any():
+                    # 尝试YYYYMMDD格式
+                    date_series = pd.to_datetime(df_calc['date'], format='%Y%m%d', errors='coerce')
+            else:
+                # 处理已经是datetime的情况
+                date_series = pd.to_datetime(df_calc['date'])
+            
+            # 格式化为ISO标准格式
+            result_df['date'] = date_series.dt.strftime('%Y-%m-%d')
             
             # Step 6: 最终按时间倒序排列（新到旧）- 用户要求的最终格式
-            result_df = result_df.sort_values('日期', ascending=False).reset_index(drop=True)
+            result_df = result_df.sort_values('date', ascending=False).reset_index(drop=True)
             
             # 计算有效WMA数据行数
             valid_wma_count = result_df[f'WMA_{max(self.config.wma_periods)}'].notna().sum()
@@ -119,6 +134,12 @@ class WMAHistoricalCalculator:
             if etf_code in etf_files_dict:
                 try:
                     df = pd.read_csv(etf_files_dict[etf_code])
+                    
+                    # 标准化字段名：将中文字段名转换为英文字段名
+                    df = df.rename(columns={
+                        '代码': 'code',
+                        '日期': 'date'
+                    })
                     
                     # 超高性能计算
                     result_df = self.calculate_full_historical_wma_optimized(df, etf_code)

@@ -135,7 +135,7 @@ class WMAEngine:
                 if not valid_wma_values.empty:
                     latest_wma = valid_wma_values.iloc[-1]
                     # 科学精度：保留6位小数 - 保持原有精度
-                    latest_wma = round(float(latest_wma), 6)
+                    latest_wma = round(float(latest_wma), 8)
                     wma_results[f'WMA_{period}'] = latest_wma
                     
                     valid_count = len(valid_wma_values)
@@ -192,7 +192,7 @@ class WMAEngine:
                     diff_value = short_wma - long_wma
                     
                     # 科学精度：保留6位小数 - 保持原有精度
-                    diff_value = round(diff_value, 6)
+                    diff_value = round(diff_value, 8)
                     wmadiff_results[diff_key] = diff_value
                     
                     # 科学解释 - 保持原有解释逻辑
@@ -234,7 +234,7 @@ class WMAEngine:
                 
                 if wma_20 != 0:
                     relative_diff_pct = (diff_abs / wma_20) * 100
-                    wmadiff_results['WMA_DIFF_5_20_PCT'] = round(relative_diff_pct, 4)
+                    wmadiff_results['WMA_DIFF_5_20_PCT'] = round(relative_diff_pct, 8)
                     print(f"  ✅ WMA_DIFF_5_20_PCT: {relative_diff_pct:.4f}% (相对差值)")
                 else:
                     wmadiff_results['WMA_DIFF_5_20_PCT'] = None

@@ -424,21 +424,28 @@ class SMAMainController:
                 
                 # 转换结果格式以适配统计逻辑
                 results_dict = {}
+                results_for_save = []
                 for result in results:
                     if result and 'etf_code' in result:
                         etf_code = result['etf_code']
                         if 'sma_data' in result:
                             results_dict[etf_code] = result['sma_data']
+                        # 为保存准备结果格式
+                        if 'historical_data' in result:
+                            results_for_save.append(result)
                 
-                # 保存结果 (批量处理器已经保存了)
+                # 保存结果到data目录
                 save_start = datetime.now()
+                save_stats = self.batch_processor.save_results_to_files(
+                    results_for_save, output_directory, threshold
+                )
                 save_end = datetime.now()
                 save_time = (save_end - save_start).total_seconds()
                 
                 # 统计信息
                 threshold_etfs = len(results_dict)
                 total_etfs_processed += threshold_etfs
-                total_files_saved += threshold_etfs  # 批量处理器已保存
+                total_files_saved += save_stats.get('files_saved', 0)
                 
                 # 计算文件大小
                 threshold_dir = os.path.join(output_directory, threshold)

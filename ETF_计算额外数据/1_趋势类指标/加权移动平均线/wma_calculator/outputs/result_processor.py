@@ -148,11 +148,11 @@ class WMAResultProcessor:
                     adj_type = result.get('adj_type', self.config.adj_type)
                     
                     row = {
-                        'ETF代码': result['etf_code'],
-                        '复权类型': adj_type,
-                        '最新日期': result['latest_price']['date'],
-                        '最新价格': result['latest_price']['close'],
-                        '涨跌幅(%)': result['latest_price']['change_pct'],
+                        'code': result['etf_code'],
+                        'adj_type': adj_type,
+                        'date': result['latest_price']['date'],
+                        'close': result['latest_price']['close'],
+                        'change_pct': result['latest_price']['change_pct'],
                     }
                     
                     # WMA核心指标
@@ -164,13 +164,13 @@ class WMAResultProcessor:
                         if wma_val is None:
                             # 尝试备用字段名
                             wma_val = wma_values.get(f'WMA_{period}')
-                        row[f'WMA{period}'] = round(wma_val, 6) if wma_val is not None else ''
+                        row[f'WMA_{period}'] = round(wma_val, 8) if wma_val is not None else ''
                     
                     # WMA差值指标 - 统一使用下划线格式
                     diff_indicators = [
-                        ('WMA_DIFF_5_20', 'WMA差值5-20'),
-                        ('WMA_DIFF_3_5', 'WMA差值3-5'),
-                        ('WMA_DIFF_5_20_PCT', 'WMA差值5-20(%)')
+                        ('WMA_DIFF_5_20', 'WMA_DIFF_5_20'),
+                        ('WMA_DIFF_3_5', 'WMA_DIFF_3_5'),
+                        ('WMA_DIFF_5_20_PCT', 'WMA_DIFF_5_20_PCT')
                     ]
                     
                     for possible_keys, csv_column_name in diff_indicators:
@@ -182,12 +182,8 @@ class WMAResultProcessor:
                                 break
                         
                         if diff_val is not None:
-                            if csv_column_name.endswith('(%)'):
-                                # 百分比保留4位小数
-                                row[csv_column_name] = round(diff_val, 4)
-                            else:
-                                # 绝对差值保留6位小数
-                                row[csv_column_name] = round(diff_val, 6)
+                            # 统一精度标准：8位小数
+                            row[csv_column_name] = round(diff_val, 8)
                         else:
                             row[csv_column_name] = ''
                     

@@ -68,7 +68,7 @@ class SMAEngine:
                 
                 if not valid_sma_values.empty:
                     latest_sma = float(valid_sma_values.iloc[-1])
-                    sma_results[f'SMA_{period}'] = round(latest_sma, 6)
+                    sma_results[f'SMA_{period}'] = round(latest_sma, 8)
                 else:
                     sma_results[f'SMA_{period}'] = None
             except Exception:
@@ -96,7 +96,7 @@ class SMAEngine:
             
             if short_sma is not None and long_sma is not None:
                 diff_value = short_sma - long_sma
-                smadiff_results[diff_key] = round(diff_value, 6)
+                smadiff_results[diff_key] = round(diff_value, 8)
             else:
                 smadiff_results[diff_key] = None
         
@@ -109,7 +109,7 @@ class SMAEngine:
             
             try:
                 relative_diff_pct = (diff_5_20 / sma_20) * 100
-                smadiff_results['SMA_DIFF_5_20_PCT'] = round(relative_diff_pct, 4)
+                smadiff_results['SMA_DIFF_5_20_PCT'] = round(relative_diff_pct, 8)
             except (ZeroDivisionError, Exception):
                 smadiff_results['SMA_DIFF_5_20_PCT'] = None
         else:

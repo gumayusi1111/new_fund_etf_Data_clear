@@ -8,7 +8,7 @@ MACD指标计算的主程序入口
 使用重构后的模块化架构，与其他趋势类指标系统保持一致
 
 使用示例:
-    python macd_main.py                                      # 默认：向量化历史MACD计算 🚀
+    python macd_main.py                                      # 默认：增量更新所有参数MACD计算 🚀
     python macd_main.py --etf 510050.SH                     # 计算单个ETF
     python macd_main.py --parameter-set sensitive           # 使用敏感参数
     python macd_main.py --quick 510050.SH                   # 快速分析
@@ -16,7 +16,7 @@ MACD指标计算的主程序入口
     python macd_main.py --validate 510050.SH               # 验证计算正确性
     python macd_main.py --vectorized                        # 向量化历史计算（超高性能）
     
-🚀 默认运行：超高性能向量化MACD历史计算，速度提升50-100倍
+🚀 默认运行：增量更新所有三种参数的MACD计算（标准/敏感/平滑）
 """
 
 import argparse
@@ -37,16 +37,16 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用示例:
-  %(prog)s                                    # 默认：向量化历史MACD计算 🚀
+  %(prog)s                                    # 默认：增量更新所有参数MACD计算 🚀
   %(prog)s --etf 510050.SH                    # 计算单个ETF
   %(prog)s --etf 510050.SH --verbose          # 详细模式
-  %(prog)s --parameter-set sensitive          # 使用敏感参数(8,17,9)
-  %(prog)s --parameter-set smooth             # 使用平滑参数(19,39,9)
+  %(prog)s --parameter-set sensitive          # 使用单个敏感参数(8,17,9)
+  %(prog)s --parameter-set smooth             # 使用单个平滑参数(19,39,9)
   %(prog)s --quick 510050.SH                  # 快速分析（不保存文件）
   %(prog)s --status                           # 查看系统状态
   %(prog)s --validate 510050.SH              # 验证计算正确性
   %(prog)s --list                            # 列出可用ETF
-  %(prog)s --vectorized                       # 向量化历史计算（超高性能）
+  %(prog)s --vectorized                       # 向量化历史计算（单个参数）
 
 参数说明:
   standard: EMA(12,26,9) - 标准参数
@@ -98,37 +98,56 @@ def main():
             adj_type=args.adj_type
         )
         
-        # 🚀 默认模式：向量化历史MACD计算（超高性能）
+        # 🚀 默认模式：增量更新所有三种参数的MACD计算
         if not any([args.etf, args.quick, args.status, args.validate, args.list, args.vectorized]):
-            print("🚀 默认模式：向量化历史MACD计算 - 超高性能模式...")
-            print("   ⚡ 预期性能提升：50-100倍")
-            print("   🗂️ 智能缓存：支持增量更新")
+            print("🚀 默认模式：增量更新MACD计算 - 所有参数组合...")
+            print("   📊 参数组合：标准(12,26,9) + 敏感(8,17,9) + 平滑(19,39,9)")
+            print("   ⚡ 智能缓存：自动增量更新")
+            print("   🗂️ 输出结构：data/{threshold}/{parameter}/")
             
-            # 使用向量化历史计算
-            result = controller.calculate_historical_batch(
-                etf_codes=None,  # 处理所有可用ETF
-                thresholds=["3000万门槛", "5000万门槛"]
-            )
+            # 为每种参数生成完整数据
+            all_parameter_sets = ['standard', 'sensitive', 'smooth']
+            parameter_names = {'standard': '标准', 'sensitive': '敏感', 'smooth': '平滑'}
+            parameter_configs = {'standard': 'EMA(12,26,9)', 'sensitive': 'EMA(8,17,9)', 'smooth': 'EMA(19,39,9)'}
             
-            # 显示结果
-            stats = result.get('processing_statistics', {})
-            total_etfs = result.get('total_etfs_processed', 0)
+            all_results = {}
             
-            print(f"\n🎉 向量化历史MACD计算完成！")
-            print(f"📊 总处理ETF数量: {total_etfs}")
+            for param_set in all_parameter_sets:
+                print(f"\n🔧 处理参数组合: {parameter_names[param_set]} - {parameter_configs[param_set]}")
+                
+                # 为每个参数创建单独的控制器
+                param_controller = MACDMainController(
+                    parameter_set=param_set,
+                    adj_type=args.adj_type
+                )
+                
+                # 使用增量更新计算
+                result = param_controller.calculate_historical_batch(
+                    etf_codes=None,  # 处理所有可用ETF
+                    thresholds=["3000万门槛", "5000万门槛"]
+                )
+                
+                all_results[param_set] = result
             
-            for threshold, threshold_stats in stats.items():
-                if threshold_stats:
-                    saved_count = threshold_stats.get('saved_count', 0)
-                    total_files = threshold_stats.get('total_files', 0)
-                    success_rate = threshold_stats.get('success_rate', 0)
-                    total_size_kb = threshold_stats.get('total_size_kb', 0)
-                    
-                    print(f"\n📈 {threshold}:")
-                    print(f"   ✅ 成功: {saved_count}/{total_files} ({success_rate:.1f}%)")
-                    print(f"   💾 文件大小: {total_size_kb:.1f} KB")
-                else:
-                    print(f"\n❌ {threshold}: 计算失败")
+            # 汇总显示结果
+            print(f"\n🎉 所有参数组合MACD计算完成！")
+            for param_set, result in all_results.items():
+                print(f"\n📊 {parameter_names[param_set]}参数 ({parameter_configs[param_set]}):")
+                stats = result.get('processing_statistics', {})
+                total_etfs = result.get('total_etfs_processed', 0)
+                print(f"   📈 处理ETF数量: {total_etfs}")
+                
+                for threshold, threshold_stats in stats.items():
+                    if threshold_stats:
+                        saved_count = threshold_stats.get('saved_count', 0)
+                        total_files = threshold_stats.get('total_files', 0)
+                        success_rate = threshold_stats.get('success_rate', 0)
+                        total_size_kb = threshold_stats.get('total_size_kb', 0)
+                        param_folder = threshold_stats.get('parameter_folder', '')
+                        
+                        print(f"   📂 {threshold}/{param_folder}: {saved_count}/{total_files}文件 ({success_rate:.1f}%) - {total_size_kb:.1f}KB")
+                    else:
+                        print(f"   ❌ {threshold}: 计算失败")
             
             return
         

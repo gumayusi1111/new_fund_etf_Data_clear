@@ -350,8 +350,8 @@ class WMAMainController:
                         result['historical_analysis'] = {
                             'total_history_days': len(historical_df),
                             'valid_wma_days': historical_df[f'WMA{max(self.config.wma_periods)}'].notna().sum(),
-                            'earliest_date': historical_df['日期'].min(),
-                            'latest_date': historical_df['日期'].max(),
+                            'earliest_date': historical_df['date'].min(),
+                            'latest_date': historical_df['date'].max(),
                             'historical_trend_summary': self._analyze_historical_trend(historical_df)
                         }
                         

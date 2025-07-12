@@ -71,13 +71,20 @@ class WMADataReader:
                 print(f"❌ {etf_code}: 数据文件为空")
                 return None
             
-            # 验证必要字段 - 保持原有字段验证
-            required_columns = ['代码', '日期', '收盘价']
+            # 验证必要字段 - 检查原始中文字段名
+            required_columns = ['代码', '日期', '收盘价']  # 原始文件的中文字段名
             missing_columns = [col for col in required_columns if col not in df.columns]
             
             if missing_columns:
                 print(f"❌ {etf_code}: 缺少必要字段: {missing_columns}")
                 return None
+            
+            # 标准化字段名：将中文字段名转换为英文字段名
+            df = df.rename(columns={
+                '代码': 'code',
+                '日期': 'date'
+                # 其他字段保持不变，只转换我们需要的关键字段
+            })
             
             # 数据清洗 - 保持原有清洗逻辑
             df = self._clean_data(df, etf_code)
@@ -118,16 +125,16 @@ class WMADataReader:
             df_cleaned = df.copy()
             
             # 日期格式处理 - 修正：正确处理YYYYMMDD格式，转换为YYYY-MM-DD字符串格式
-            df_cleaned['日期'] = pd.to_datetime(df_cleaned['日期'], format='%Y%m%d', errors='coerce')
+            df_cleaned['date'] = pd.to_datetime(df_cleaned['date'], format='%Y%m%d', errors='coerce')
             
             # 移除日期无效的行
-            df_cleaned = df_cleaned.dropna(subset=['日期'])
+            df_cleaned = df_cleaned.dropna(subset=['date'])
             
             # 转换为YYYY-MM-DD字符串格式，与SMA系统保持一致
-            df_cleaned['日期'] = df_cleaned['日期'].dt.strftime('%Y-%m-%d')
+            df_cleaned['date'] = df_cleaned['date'].dt.strftime('%Y-%m-%d')
             
             # 按日期排序 - 保持原有排序方式（字符串格式的日期排序）
-            df_cleaned = df_cleaned.sort_values('日期')
+            df_cleaned = df_cleaned.sort_values('date')
             
             # 价格字段数值化处理 - 保持原有处理方式
             price_columns = ['收盘价', '开盘价', '最高价', '最低价']
@@ -176,9 +183,9 @@ class WMADataReader:
         latest_row = df.iloc[-1]
         
         price_info = {
-            'date': str(latest_row['日期']),  # 日期已经是YYYY-MM-DD字符串格式
-            'close': round(float(latest_row['收盘价']), 6),
-            'code': latest_row.get('代码', '')
+            'date': str(latest_row['date']),  # 日期已经是YYYY-MM-DD字符串格式
+            'close': round(float(latest_row['收盘价']), 8),  # 更新为8位小数
+            'code': latest_row.get('code', '')
         }
         
         # 计算涨跌幅 - 保持原有计算方式
@@ -188,8 +195,8 @@ class WMADataReader:
             change_pct = (change / prev_close) * 100 if prev_close > 0 else 0
             
             price_info.update({
-                'change': round(float(change), 6),
-                'change_pct': round(float(change_pct), 4)
+                'change': round(float(change), 8),  # 更新为8位小数
+                'change_pct': round(float(change_pct), 8)  # 更新为8位小数
             })
         else:
             price_info.update({
@@ -213,8 +220,8 @@ class WMADataReader:
             return {}
         
         return {
-            'start_date': str(df['日期'].iloc[0]),  # 日期已经是YYYY-MM-DD字符串格式
-            'end_date': str(df['日期'].iloc[-1]),   # 日期已经是YYYY-MM-DD字符串格式
+            'start_date': str(df['date'].iloc[0]),  # 日期已经是YYYY-MM-DD字符串格式
+            'end_date': str(df['date'].iloc[-1]),   # 日期已经是YYYY-MM-DD字符串格式
             'total_days': len(df)
         }
     

@@ -68,19 +68,19 @@ class EMAEngine:
                 
                 # 获取最新EMA值
                 latest_ema = ema_values[period].iloc[-1]
-                results[f'ema_{period}'] = round(float(latest_ema), 6)
+                results[f'ema_{period}'] = round(float(latest_ema), 8)
                 if not self.config.performance_mode:
                     print(f"   ✅ EMA{period}: {results[f'ema_{period}']}")
             
             # 计算EMA差值指标（核心MACD组件）
             if 12 in self.config.ema_periods and 26 in self.config.ema_periods:
                 ema_diff = ema_values[12].iloc[-1] - ema_values[26].iloc[-1]
-                results['ema_diff_12_26'] = round(float(ema_diff), 6)
+                results['ema_diff_12_26'] = round(float(ema_diff), 8)
                 
                 # 相对差值百分比
                 if ema_values[26].iloc[-1] != 0:
                     ema_diff_pct = (ema_diff / ema_values[26].iloc[-1]) * 100
-                    results['ema_diff_12_26_pct'] = round(float(ema_diff_pct), 3)
+                    results['ema_diff_12_26_pct'] = round(float(ema_diff_pct), 8)
                 else:
                     results['ema_diff_12_26_pct'] = 0.0
                 
@@ -93,7 +93,7 @@ class EMAEngine:
                 current_ema12 = ema_values[12].iloc[-1]
                 prev_ema12 = ema_values[12].iloc[-2]
                 ema12_momentum = current_ema12 - prev_ema12
-                results['ema12_momentum'] = round(float(ema12_momentum), 6)
+                results['ema12_momentum'] = round(float(ema12_momentum), 8)
                 if not self.config.performance_mode:
                     print(f"   🔄 EMA12动量: {results['ema12_momentum']}")
             
@@ -153,30 +153,30 @@ class EMAEngine:
             
             # 创建结果DataFrame，只包含必要字段
             result_df = pd.DataFrame({
-                '代码': etf_code.replace('.SH', '').replace('.SZ', ''),
-                '日期': df['日期']
+                'code': etf_code.replace('.SH', '').replace('.SZ', ''),
+                'date': df['日期']
             })
             
             # 计算各周期EMA
             for period in self.config.ema_periods:
-                ema_column = f'EMA{period}'
-                result_df[ema_column] = self._calculate_single_ema(df['收盘价'], period)
+                ema_column = f'EMA_{period}'
+                result_df[ema_column] = self._calculate_single_ema(df['收盘价'], period).round(8)
             
             # 计算EMA差值和相关指标
             if 12 in self.config.ema_periods and 26 in self.config.ema_periods:
                 # EMA12-EMA26差值
-                result_df['EMA_DIFF_12_26'] = result_df['EMA12'] - result_df['EMA26']
+                result_df['EMA_DIFF_12_26'] = (result_df['EMA_12'] - result_df['EMA_26']).round(8)
                 
                 # EMA差值百分比
-                result_df['EMA_DIFF_12_26_PCT'] = (result_df['EMA_DIFF_12_26'] / result_df['EMA26']) * 100
+                result_df['EMA_DIFF_12_26_PCT'] = ((result_df['EMA_DIFF_12_26'] / result_df['EMA_26']) * 100).round(8)
                 
                 # EMA12动量（日变化）- 在时序数据上计算
-                result_df['EMA12_MOMENTUM'] = result_df['EMA12'].diff()
+                result_df['EMA12_MOMENTUM'] = result_df['EMA_12'].diff().round(8)
                 # 修复第一个数据点的空值问题：第一个历史数据点动量设为0
                 result_df['EMA12_MOMENTUM'] = result_df['EMA12_MOMENTUM'].fillna(0.0)
             
             # 按时间倒序排列（与输出格式保持一致）
-            result_df = result_df.sort_values('日期', ascending=False).reset_index(drop=True)
+            result_df = result_df.sort_values('date', ascending=False).reset_index(drop=True)
             
             if not self.config.performance_mode:
                 print(f"✅ {etf_code}完整历史EMA计算完成 ({len(result_df)}行)")
