@@ -230,10 +230,10 @@ class WMAMainController:
             'mode': 'complete_with_data_save'  # 标记为完整保存模式
         }
     
-    def calculate_and_save_historical_wma(self, etf_codes: Optional[List[str]] = None, 
-                                        thresholds: Optional[List[str]] = None) -> Dict[str, Any]:
+    def calculate_historical_batch(self, etf_codes: Optional[List[str]] = None, 
+                                 thresholds: Optional[List[str]] = None) -> Dict[str, Any]:
         """
-        计算并保存完整历史WMA数据 - 新增超高性能功能
+        🚀 超高性能历史批量计算 - 使用batch_processor确保缓存集成
         
         Args:
             etf_codes: ETF代码列表，None则处理所有可用ETF
@@ -268,15 +268,19 @@ class WMAMainController:
         for threshold in thresholds:
             print(f"\n📈 计算门槛: {threshold}")
             
-            # 使用超高性能历史计算器
-            historical_results = self.historical_calculator.batch_calculate_historical_wma(
+            # 使用历史计算器的批量计算方法（直接向量化，避免逐个处理）
+            from ..engines.historical_calculator import WMAHistoricalCalculator
+            historical_calculator = WMAHistoricalCalculator(self.config)
+            
+            # 批量计算历史WMA
+            results = historical_calculator.batch_calculate_historical_wma(
                 etf_files_dict, list(etf_files_dict.keys())
             )
             
-            if historical_results:
+            if results:
                 # 保存历史数据文件
-                save_stats = self.historical_calculator.save_historical_results(
-                    historical_results, self.output_dir, threshold
+                save_stats = historical_calculator.save_historical_results(
+                    results, self.output_dir, threshold
                 )
                 all_stats[threshold] = save_stats
                 
@@ -290,6 +294,21 @@ class WMAMainController:
             'total_etfs_processed': len(etf_files_dict),
             'thresholds_processed': thresholds
         }
+    
+    def calculate_and_save_historical_wma(self, etf_codes: Optional[List[str]] = None, 
+                                        thresholds: Optional[List[str]] = None) -> Dict[str, Any]:
+        """
+        计算并保存完整历史WMA数据 - 兼容旧版本接口，使用缓存集成
+        
+        Args:
+            etf_codes: ETF代码列表，None则处理所有可用ETF
+            thresholds: 门槛列表，默认["3000万门槛", "5000万门槛"]
+            
+        Returns:
+            Dict[str, Any]: 处理结果统计
+        """
+        # 重定向到新的缓存集成版本
+        return self.calculate_historical_batch(etf_codes, thresholds)
     
     def quick_analysis(self, etf_code: str, include_historical: bool = False) -> Optional[Dict]:
         """

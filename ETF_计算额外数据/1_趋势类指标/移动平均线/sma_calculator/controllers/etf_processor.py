@@ -116,7 +116,30 @@ class ETFProcessor:
             }
     
     def _generate_historical_data(self, etf_code: str, df: pd.DataFrame) -> Optional[pd.DataFrame]:
-        """生成ETF的完整历史数据（包含所有SMA计算）"""
+        """生成ETF的完整历史数据（包含所有SMA计算）- 使用向量化引擎"""
+        try:
+            # 使用超高性能向量化引擎
+            from ..engines.sma_historical_calculator import SMAHistoricalCalculator
+            historical_calculator = SMAHistoricalCalculator(self.config)
+            
+            # 向量化计算
+            result_df = historical_calculator.calculate_full_historical_sma_optimized(df, etf_code)
+            
+            if result_df is not None:
+                print(f"   🚀 {etf_code}: 超高性能历史数据生成完成 - {len(result_df)}行")
+                return result_df
+            else:
+                print(f"   ❌ {etf_code}: 超高性能历史数据生成失败，回退到传统方法")
+                # 回退到传统方法
+                return self._generate_historical_data_traditional(etf_code, df)
+                
+        except Exception as e:
+            print(f"   ❌ {etf_code}: 超高性能历史数据生成异常: {str(e)}，回退到传统方法")
+            # 回退到传统方法
+            return self._generate_historical_data_traditional(etf_code, df)
+    
+    def _generate_historical_data_traditional(self, etf_code: str, df: pd.DataFrame) -> Optional[pd.DataFrame]:
+        """传统方法生成ETF的完整历史数据（备用方法）"""
         try:
             # 列名映射：中文转英文
             column_mapping = {
@@ -157,10 +180,11 @@ class ETFProcessor:
             # 确保按时间倒序排列（最新在顶部）
             result_df = result_df.sort_values('日期', ascending=False).reset_index(drop=True)
             
+            print(f"   📊 {etf_code}: 传统方法历史数据生成完成 - {len(result_df)}行")
             return result_df
             
         except Exception as e:
-            print(f"   ❌ {etf_code}: 历史数据生成失败: {str(e)}")
+            print(f"   ❌ {etf_code}: 传统方法历史数据生成失败: {str(e)}")
             return None
     
     def _calculate_sma_differences(self, result_df: pd.DataFrame):

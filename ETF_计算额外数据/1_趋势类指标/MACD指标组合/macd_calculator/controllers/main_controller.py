@@ -344,6 +344,71 @@ class MACDMainController:
             print(f"❌ 验证失败: {str(e)}")
             return False
     
+    def calculate_historical_batch(self, etf_codes: Optional[List[str]] = None, 
+                                 thresholds: Optional[List[str]] = None) -> Dict[str, Any]:
+        """
+        计算并保存完整历史MACD数据 - 使用batch_processor确保缓存集成
+        
+        Args:
+            etf_codes: ETF代码列表，None则处理所有可用ETF
+            thresholds: 门槛列表，默认["3000万门槛", "5000万门槛"]
+            
+        Returns:
+            Dict[str, Any]: 处理结果统计
+        """
+        thresholds = thresholds or ["3000万门槛", "5000万门槛"]
+        
+        print(f"🚀 开始历史MACD数据计算和保存...")
+        print(f"📊 门槛设置: {thresholds}")
+        
+        # 获取ETF列表
+        if etf_codes is None:
+            etf_codes = self.data_reader.get_available_etfs()
+        
+        print(f"📈 待处理ETF数量: {len(etf_codes)}")
+        
+        # 获取ETF文件路径字典
+        etf_files_dict = {}
+        for etf_code in etf_codes:
+            file_path = self.data_reader.get_etf_file_path(etf_code)
+            if file_path and os.path.exists(file_path):
+                etf_files_dict[etf_code] = file_path
+        
+        print(f"📁 有效ETF文件数量: {len(etf_files_dict)}")
+        
+        all_stats = {}
+        
+        # 为每个门槛计算历史数据
+        for threshold in thresholds:
+            print(f"\n📈 计算门槛: {threshold}")
+            
+            # 使用历史计算器的批量计算方法
+            from ..engines.historical_calculator import MACDHistoricalCalculator
+            historical_calculator = MACDHistoricalCalculator(self.config)
+            
+            # 批量计算历史MACD
+            results = historical_calculator.batch_calculate_historical_macd(
+                etf_files_dict, list(etf_files_dict.keys())
+            )
+            
+            if results:
+                # 保存历史数据文件
+                save_stats = historical_calculator.save_historical_results(
+                    results, self.output_dir, threshold
+                )
+                all_stats[threshold] = save_stats
+                
+                print(f"✅ {threshold}: 历史数据计算和保存完成")
+            else:
+                print(f"❌ {threshold}: 历史数据计算失败")
+                all_stats[threshold] = {}
+        
+        return {
+            'processing_statistics': all_stats,
+            'total_etfs_processed': len(etf_files_dict),
+            'thresholds_processed': thresholds
+        }
+    
     def _get_output_path(self, etf_code: str, threshold: str, parameter_folder: str) -> str:
         """
         根据参数设置获取正确的输出路径

@@ -224,18 +224,36 @@ def demo_advanced_features():
 
 
 def main():
-    """主函数 - 默认增量计算模式"""
-    print("🚀 WMA计算器 - 增量计算模式")
-    print("📊 自动执行批量处理（增量更新）")
-    print("=" * 50)
+    """主函数 - 默认向量化历史计算模式"""
+    print("🚀 WMA计算器 - 向量化历史计算模式")
+    print("📊 超高性能向量化计算，预期速度提升50-100倍")
+    print("🗂️ 智能缓存：支持增量更新")
+    print("=" * 60)
     
     try:
-        # 直接执行批量处理（增量计算）
+        # 直接执行向量化历史批量计算
         controller = WMAMainController(performance_mode=True)
-        results = controller.calculate_and_save_screening_results()
+        results = controller.calculate_historical_batch()
         
-        print(f"\n✅ 增量计算完成")
-        print(f"📊 总计处理: {results['total_etfs']} 个ETF")
+        # 显示结果
+        stats = results.get('processing_statistics', {})
+        total_etfs = results.get('total_etfs_processed', 0)
+        
+        print(f"\n🎉 向量化历史WMA计算完成！")
+        print(f"📊 总处理ETF数量: {total_etfs}")
+        
+        for threshold, threshold_stats in stats.items():
+            if threshold_stats:
+                saved_count = threshold_stats.get('saved_count', 0)
+                total_files = threshold_stats.get('total_files', 0)
+                success_rate = threshold_stats.get('success_rate', 0)
+                total_size_kb = threshold_stats.get('total_size_kb', 0)
+                
+                print(f"\n📈 {threshold}:")
+                print(f"   ✅ 成功: {saved_count}/{total_files} ({success_rate:.1f}%)")
+                print(f"   💾 文件大小: {total_size_kb:.1f} KB")
+            else:
+                print(f"\n❌ {threshold}: 计算失败")
         
     except KeyboardInterrupt:
         print("\n👋 程序中断，退出")

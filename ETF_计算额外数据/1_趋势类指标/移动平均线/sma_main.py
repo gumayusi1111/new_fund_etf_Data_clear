@@ -23,12 +23,17 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例用法:
+  默认运行:       python sma_main.py (🚀 超高性能向量化计算)
   系统状态:       python sma_main.py --status
   单个ETF:        python sma_main.py --etf 159001
   单个门槛:       python sma_main.py --threshold "3000万门槛"
-  默认双门槛:     python sma_main.py --run-default
+  传统模式:       python sma_main.py --run-default
   全部门槛:       python sma_main.py --all-thresholds
-  详细模式:       python sma_main.py --run-default --verbose
+  详细模式:       python sma_main.py --verbose
+  
+  🚀 超高性能历史计算:
+  批量历史计算:   python sma_main.py --historical-batch
+  指定门槛历史:   python sma_main.py --historical-threshold "3000万门槛"
         """
     )
     
@@ -43,13 +48,20 @@ def main():
                        help='处理指定门槛的ETF筛选结果 (例: "3000万门槛")')
     
     parser.add_argument('--run-default', action='store_true',
-                       help='运行默认配置：计算3000万和5000万两个门槛 (推荐)')
+                       help='运行传统模式：计算3000万和5000万两个门槛 (循环计算)')
     
     parser.add_argument('--all-thresholds', action='store_true',
                        help='处理所有可用门槛的ETF筛选结果')
     
     parser.add_argument('--verbose', action='store_true',
                        help='详细输出模式')
+    
+    # 新增：超高性能历史计算选项
+    parser.add_argument('--historical-batch', action='store_true',
+                       help='🚀 超高性能历史计算模式：批量计算所有ETF的完整历史数据 (默认模式)')
+    
+    parser.add_argument('--historical-threshold', type=str, metavar='THRESHOLD',
+                       help='🚀 超高性能历史计算：指定门槛的完整历史计算 (例: "3000万门槛")')
     
     args = parser.parse_args()
     
@@ -72,11 +84,16 @@ def main():
             return handle_default_run_command(controller, args)
         elif args.all_thresholds:
             return handle_all_thresholds_command(controller, args)
+        elif args.historical_batch:
+            return handle_historical_batch_command(controller, args)
+        elif args.historical_threshold:
+            return handle_historical_threshold_command(controller, args)
         else:
-            # 默认行为：如果没有指定参数，运行默认的双门槛计算
-            print("🎯 未指定参数，运行默认配置...")
-            args.run_default = True
-            return handle_default_run_command(controller, args)
+            # 默认行为：如果没有指定参数，运行超高性能向量化计算
+            print("🚀 未指定参数，运行默认超高性能向量化计算...")
+            args.historical_batch = True
+            args.verbose = True
+            return handle_historical_batch_command(controller, args)
     
     except KeyboardInterrupt:
         print("\n⚠️ 用户中断操作")
@@ -240,6 +257,88 @@ def handle_all_thresholds_command(controller, args):
             
     except Exception as e:
         print(f"\n❌ 全部门槛处理异常: {str(e)}")
+        return 1
+
+
+def handle_historical_batch_command(controller, args):
+    """处理超高性能批量历史计算命令"""
+    thresholds = get_default_thresholds()
+    
+    print("🚀 超高性能批量历史计算模式")
+    print("📊 将计算: 3000万门槛 + 5000万门槛 的完整历史数据")
+    print("⚡ 预期性能提升: 50-100倍")
+    print("=" * 60)
+    
+    try:
+        result = controller.calculate_historical_batch(
+            thresholds=thresholds,
+            verbose=args.verbose
+        )
+        
+        if result.get('success'):
+            print(f"\n🎉 超高性能批量历史计算完成！")
+            
+            # 显示统计信息
+            print("📊 性能统计:")
+            print(f"   📁 处理ETF数: {result.get('total_etfs_processed', 0)}")
+            print(f"   📁 处理门槛数: {result.get('thresholds_processed', 0)}")
+            print(f"   📁 输出目录: {result.get('output_directory', '')}")
+            print(f"   ⏱️  总处理时间: {result.get('processing_time_seconds', 0):.2f}秒")
+            print(f"   🚀 平均处理速度: {result.get('etfs_per_second', 0):.1f} ETF/秒")
+            
+            save_stats = result.get('save_statistics', {})
+            if save_stats:
+                print(f"   💾 保存文件: {save_stats.get('total_files_saved', 0)}")
+                size_mb = save_stats.get('total_size_bytes', 0) / 1024 / 1024
+                print(f"   📊 文件大小: {size_mb:.2f}MB")
+            
+            return 0
+        else:
+            print(f"\n❌ 超高性能批量历史计算失败: {result.get('message', '未知错误')}")
+            return 1
+            
+    except Exception as e:
+        print(f"\n❌ 超高性能批量历史计算异常: {str(e)}")
+        return 1
+
+
+def handle_historical_threshold_command(controller, args):
+    """处理超高性能指定门槛历史计算命令"""
+    threshold = args.historical_threshold
+    
+    print(f"🚀 超高性能历史计算: {threshold}")
+    print("⚡ 预期性能提升: 50-100倍")
+    print("=" * 60)
+    
+    try:
+        result = controller.calculate_historical_batch(
+            thresholds=[threshold],
+            verbose=args.verbose
+        )
+        
+        if result.get('success'):
+            print(f"\n🎉 {threshold} 超高性能历史计算完成！")
+            
+            # 显示统计信息
+            print("📊 性能统计:")
+            print(f"   📁 处理ETF数: {result.get('total_etfs_processed', 0)}")
+            print(f"   📁 输出目录: {result.get('output_directory', '')}")
+            print(f"   ⏱️  总处理时间: {result.get('processing_time_seconds', 0):.2f}秒")
+            print(f"   🚀 平均处理速度: {result.get('etfs_per_second', 0):.1f} ETF/秒")
+            
+            save_stats = result.get('save_statistics', {})
+            if save_stats:
+                print(f"   💾 保存文件: {save_stats.get('total_files_saved', 0)}")
+                size_mb = save_stats.get('total_size_bytes', 0) / 1024 / 1024
+                print(f"   📊 文件大小: {size_mb:.2f}MB")
+            
+            return 0
+        else:
+            print(f"\n❌ {threshold} 超高性能历史计算失败: {result.get('message', '未知错误')}")
+            return 1
+            
+    except Exception as e:
+        print(f"\n❌ {threshold} 超高性能历史计算异常: {str(e)}")
         return 1
 
 

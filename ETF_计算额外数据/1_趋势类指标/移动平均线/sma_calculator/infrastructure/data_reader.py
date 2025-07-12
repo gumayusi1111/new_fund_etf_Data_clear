@@ -175,6 +175,22 @@ class ETFDataReader:
         except Exception:
             return {}
     
+    def get_etf_file_path(self, etf_code: str) -> Optional[str]:
+        """
+        获取ETF文件的完整路径
+        
+        Args:
+            etf_code: ETF代码
+            
+        Returns:
+            Optional[str]: 文件路径，如果不存在返回None
+        """
+        try:
+            file_path = self.config.get_etf_file_path(etf_code)
+            return file_path if os.path.exists(file_path) else None
+        except Exception:
+            return None
+    
     def validate_etf_code(self, etf_code: str) -> bool:
         """验证ETF代码是否有效"""
         try:
