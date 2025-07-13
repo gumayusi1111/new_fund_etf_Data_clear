@@ -242,66 +242,130 @@ class WMAMainController:
         Returns:
             Dict[str, Any]: 处理结果统计
         """
+        print("🚀 开始超高性能历史批量计算...")
+        print("⚡ 使用智能缓存模式，支持增量更新")
+        start_time = datetime.now()
+        
         thresholds = thresholds or ["3000万门槛", "5000万门槛"]
         
-        print(f"🚀 开始历史WMA数据计算和保存...")
-        print(f"📊 门槛设置: {thresholds}")
+        total_etfs_processed = 0
+        total_files_saved = 0
+        total_size_bytes = 0
+        processing_stats = {}
         
-        all_stats = {}
-        
-        # 为每个门槛分别处理
-        for threshold in thresholds:
-            print(f"\n📈 计算门槛: {threshold}")
-            
-            # 获取该门槛的ETF列表
-            if etf_codes is None:
-                # 使用ETF初筛结果，而不是所有可用ETF
-                threshold_etf_codes = self.data_reader.get_screening_etf_codes(threshold)
-                print(f"📊 {threshold}: 读取筛选结果...")
-                print(f"📊 {threshold}: 找到 {len(threshold_etf_codes)} 个通过筛选的ETF")
-            else:
-                threshold_etf_codes = etf_codes
-            
-            print(f"📈 {threshold} 待处理ETF数量: {len(threshold_etf_codes)}")
-            
-            # 获取该门槛的ETF文件路径字典
-            etf_files_dict = {}
-            for etf_code in threshold_etf_codes:
-                file_path = self.data_reader.get_etf_file_path(etf_code)
-                if file_path and os.path.exists(file_path):
-                    etf_files_dict[etf_code] = file_path
-            
-            print(f"📁 {threshold} 有效ETF文件数量: {len(etf_files_dict)}")
-            
-            # 使用历史计算器的批量计算方法（直接向量化，避免逐个处理）
-            from ..engines.historical_calculator import WMAHistoricalCalculator
-            historical_calculator = WMAHistoricalCalculator(self.config)
-            
-            # 批量计算历史WMA
-            results = historical_calculator.batch_calculate_historical_wma(
-                etf_files_dict, list(etf_files_dict.keys())
-            )
-            
-            if results:
-                # 保存历史数据文件
-                save_stats = historical_calculator.save_historical_results(
-                    results, self.output_dir, threshold
+        try:
+            for threshold in thresholds:
+                print(f"\n📊 {threshold}: 读取筛选结果...")
+                
+                # 获取该门槛的ETF列表
+                if etf_codes is None:
+                    threshold_etf_codes = self.data_reader.get_screening_etf_codes(threshold)
+                    print(f"📊 {threshold}: 找到 {len(threshold_etf_codes)} 个通过筛选的ETF")
+                else:
+                    threshold_etf_codes = etf_codes
+                
+                if not threshold_etf_codes:
+                    print(f"❌ {threshold}: 未找到筛选结果")
+                    continue
+                
+                print(f"🚀 开始超高性能批量计算（智能缓存模式）...")
+                
+                # 使用现有的批量处理器（包含缓存逻辑）进行处理
+                calculation_start = datetime.now()
+                results = self.batch_processor.process_etf_list(
+                    etf_codes=threshold_etf_codes,
+                    threshold=threshold,
+                    include_advanced_analysis=False
                 )
-                all_stats[threshold] = save_stats
+                calculation_end = datetime.now()
+                calculation_time = (calculation_end - calculation_start).total_seconds()
+                
+                # 转换结果格式以适配统计逻辑
+                results_dict = {}
+                results_for_save = []
+                for result in results:
+                    if result and 'etf_code' in result:
+                        etf_code = result['etf_code']
+                        if 'wma_values' in result:
+                            results_dict[etf_code] = result['wma_values']
+                        # 为保存准备结果格式
+                        if 'historical_data' in result:
+                            results_for_save.append(result)
+                
+                # 保存结果到data目录
+                save_start = datetime.now()
+                save_stats = self.batch_processor.save_results_to_files(
+                    results_for_save, self.output_dir, threshold
+                )
+                save_end = datetime.now()
+                save_time = (save_end - save_start).total_seconds()
+                
+                # 统计信息
+                threshold_etfs = len(results_dict)
+                total_etfs_processed += threshold_etfs
+                total_files_saved += save_stats.get('files_saved', 0)
+                
+                # 计算文件大小
+                threshold_dir = os.path.join(self.output_dir, threshold)
+                threshold_size = 0
+                if os.path.exists(threshold_dir):
+                    for file in os.listdir(threshold_dir):
+                        if file.endswith('.csv'):
+                            file_path = os.path.join(threshold_dir, file)
+                            threshold_size += os.path.getsize(file_path)
+                total_size_bytes += threshold_size
+                
+                processing_stats[threshold] = {
+                    'etfs_processed': threshold_etfs,
+                    'files_saved': threshold_etfs,
+                    'calculation_time': calculation_time,
+                    'save_time': save_time,
+                    'etfs_per_second': threshold_etfs / calculation_time if calculation_time > 0 else 0
+                }
                 
                 print(f"✅ {threshold}: 历史数据计算和保存完成")
-            else:
-                print(f"❌ {threshold}: 历史数据计算失败")
-                all_stats[threshold] = {}
-        
-        # 计算总处理ETF数量
-        total_etfs = sum(len(stats.get('etf_codes', [])) for stats in all_stats.values() if stats)
-        
-        return {
-            'processing_statistics': all_stats,
-            'total_etfs_processed': total_etfs,
-            'thresholds_processed': thresholds
-        }
+                print(f"   ⚡ 计算时间: {calculation_time:.2f}秒")
+                print(f"   💾 保存时间: {save_time:.2f}秒") 
+                print(f"   🚀 计算速度: {processing_stats[threshold]['etfs_per_second']:.1f} ETF/秒")
+            
+            end_time = datetime.now()
+            total_time = (end_time - start_time).total_seconds()
+            
+            # 构建返回结果
+            result = {
+                'success': True,
+                'total_etfs_processed': total_etfs_processed,
+                'thresholds_processed': len([t for t in thresholds if t in processing_stats]),
+                'processing_time_seconds': total_time,
+                'etfs_per_second': total_etfs_processed / total_time if total_time > 0 else 0,
+                'output_directory': self.output_dir,
+                'save_statistics': {
+                    'total_files_saved': total_files_saved,
+                    'total_size_bytes': total_size_bytes
+                },
+                'processing_details': processing_stats
+            }
+            
+            print(f"\n🎉 超高性能历史批量计算完成！")
+            print(f"📊 总体统计:")
+            print(f"   📁 处理ETF数: {total_etfs_processed}")
+            print(f"   📁 处理门槛数: {result['thresholds_processed']}")
+            print(f"   ⏱️  总处理时间: {total_time:.2f}秒")
+            print(f"   🚀 平均处理速度: {result['etfs_per_second']:.1f} ETF/秒")
+            print(f"   💾 保存文件: {total_files_saved}")
+            print(f"   📊 文件大小: {total_size_bytes/1024/1024:.2f}MB")
+            
+            return result
+            
+        except Exception as e:
+            error_message = f"超高性能历史批量计算失败: {str(e)}"
+            print(f"❌ {error_message}")
+            
+            return {
+                'success': False,
+                'message': error_message,
+                'total_etfs_processed': 0
+            }
     
     def calculate_and_save_historical_wma(self, etf_codes: Optional[List[str]] = None, 
                                         thresholds: Optional[List[str]] = None) -> Dict[str, Any]:
