@@ -179,27 +179,44 @@ class BBConfig:
                 return name
         return '自定义'
         
-    def get_cache_file_path(self, threshold: str, etf_code: str) -> str:
-        """获取缓存文件路径"""
+    def get_cache_file_path(self, threshold: str, etf_code: str, param_set: str = None) -> str:
+        """获取缓存文件路径（支持参数集分层）"""
         clean_etf_code = etf_code.replace('.SH', '').replace('.SZ', '')
-        return os.path.join(self.cache_dir, threshold, f"{clean_etf_code}.csv")
+        if param_set:
+            return os.path.join(self.cache_dir, threshold, param_set, f"{clean_etf_code}.csv")
+        else:
+            # 使用当前参数集名称
+            current_param_set = self.get_current_param_set_name()
+            return os.path.join(self.cache_dir, threshold, current_param_set, f"{clean_etf_code}.csv")
         
-    def get_output_file_path(self, threshold: str, etf_code: str) -> str:
-        """获取输出文件路径"""
+    def get_output_file_path(self, threshold: str, etf_code: str, param_set: str = None) -> str:
+        """获取输出文件路径（支持参数集分层）"""
         clean_etf_code = etf_code.replace('.SH', '').replace('.SZ', '')
-        return os.path.join(self.default_output_dir, threshold, f"{clean_etf_code}.csv")
+        if param_set:
+            return os.path.join(self.default_output_dir, threshold, param_set, f"{clean_etf_code}.csv")
+        else:
+            # 使用当前参数集名称
+            current_param_set = self.get_current_param_set_name()
+            return os.path.join(self.default_output_dir, threshold, current_param_set, f"{clean_etf_code}.csv")
         
     def ensure_directories_exist(self) -> None:
-        """确保必要目录存在"""
+        """确保必要目录存在（支持参数集分层）"""
+        thresholds = ["3000万门槛", "5000万门槛"]
+        param_sets = list(self.BB_PARAMS_SETS.keys())
+        
         directories = [
             self.default_output_dir,
             self.cache_dir,
-            os.path.join(self.cache_dir, "meta"),
-            os.path.join(self.cache_dir, "3000万门槛"),
-            os.path.join(self.cache_dir, "5000万门槛"),
-            os.path.join(self.default_output_dir, "3000万门槛"),
-            os.path.join(self.default_output_dir, "5000万门槛")
+            os.path.join(self.cache_dir, "meta")
         ]
+        
+        # 为每个门槛和参数集创建目录
+        for threshold in thresholds:
+            for param_set in param_sets:
+                directories.extend([
+                    os.path.join(self.cache_dir, threshold, param_set),
+                    os.path.join(self.default_output_dir, threshold, param_set)
+                ])
         
         for directory in directories:
             os.makedirs(directory, exist_ok=True)

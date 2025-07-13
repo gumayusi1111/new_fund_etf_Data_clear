@@ -73,13 +73,14 @@ class BBCSVHandler:
             return None
     
     def create_batch_csv(self, results_dict: Dict[str, Any], threshold: str, 
-                        output_filename: str = None) -> bool:
+                        param_set: str = None, output_filename: str = None) -> bool:
         """
-        为每个ETF创建独立的CSV文件（匹配MACD模式）
+        为每个ETF创建独立的CSV文件（支持参数集分层）
         
         Args:
             results_dict: 批量计算结果字典
             threshold: 门槛类型
+            param_set: 参数集名称
             output_filename: 输出文件名（可选）
             
         Returns:
@@ -91,8 +92,12 @@ class BBCSVHandler:
             if not successful_results:
                 return False
             
-            # 确保目录存在 - 使用正确的输出目录
-            output_dir = os.path.join(self.config.default_output_dir, threshold)
+            # 确定参数集
+            if not param_set:
+                param_set = self.config.get_current_param_set_name()
+            
+            # 确保目录存在 - 使用参数集分层目录
+            output_dir = os.path.join(self.config.default_output_dir, threshold, param_set)
             self.utils.ensure_directory_exists(output_dir)
             
             # 为每个ETF生成独立的CSV文件
@@ -101,18 +106,17 @@ class BBCSVHandler:
             for etf_code, result in successful_results.items():
                 if result.get('success'):
                     try:
-                        # 使用缓存中的完整历史数据
-                        from ..infrastructure.cache_manager import BBCacheManager
-                        cache_manager = BBCacheManager(self.config)
+                        # 直接从缓存中读取参数集特定的数据
+                        clean_etf_code = self.utils.format_etf_code(etf_code)
+                        cache_file = self.config.get_cache_file_path(threshold, clean_etf_code, param_set)
                         
-                        # 重新生成完整历史数据
-                        full_data = cache_manager._generate_full_history_data(etf_code, result)
-                        
-                        if full_data is not None and not full_data.empty:
-                            # 保存为ETF独立文件
-                            clean_etf_code = self.utils.format_etf_code(etf_code)
+                        if os.path.exists(cache_file):
+                            # 直接复制缓存中的数据到输出目录
+                            import pandas as pd
+                            cached_data = pd.read_csv(cache_file)
+                            
                             output_file = os.path.join(output_dir, f"{clean_etf_code}.csv")
-                            full_data.to_csv(output_file, index=False, encoding='utf-8')
+                            cached_data.to_csv(output_file, index=False, encoding='utf-8')
                             saved_count += 1
                             
                     except Exception:

@@ -144,24 +144,64 @@ class BBCacheManager:
             return None
     
     def save_to_cache(self, etf_code: str, calculation_result: Dict, 
-                     threshold: str = "") -> bool:
-        """保存计算结果到缓存"""
+                     threshold: str = "", param_set: str = None) -> bool:
+        """保存计算结果到缓存（支持参数集分层）"""
         try:
             # 直接保存为CSV格式，每个ETF一个文件
             if threshold:
-                cache_file = os.path.join(self.cache_dir, threshold, f"{etf_code}.csv")
+                if param_set:
+                    cache_file = os.path.join(self.cache_dir, threshold, param_set, f"{etf_code}.csv")
+                else:
+                    # 使用当前参数集
+                    current_param_set = self.config.get_current_param_set_name()
+                    cache_file = os.path.join(self.cache_dir, threshold, current_param_set, f"{etf_code}.csv")
             else:
                 cache_file = os.path.join(self.cache_dir, f"{etf_code}.csv")
             
             # 确保目录存在
             os.makedirs(os.path.dirname(cache_file), exist_ok=True)
             
-            # 创建缓存数据格式 - 保存完整历史数据而不只是最新值
-            if calculation_result.get('success') and calculation_result.get('bb_results'):
-                # 重新生成完整的历史数据
-                full_data = self._generate_full_history_data(etf_code, calculation_result)
-                if full_data is not None:
-                    full_data.to_csv(cache_file, index=False, encoding='utf-8')
+            # 创建缓存数据格式 - 直接保存计算结果中的完整历史数据
+            if calculation_result.get('success') and calculation_result.get('full_history_data') is not None:
+                # 直接使用计算结果中的完整历史数据
+                full_data = calculation_result.get('full_history_data')
+                full_data.to_csv(cache_file, index=False, encoding='utf-8')
+                
+                # 创建元数据文件
+                self._create_cache_metadata(etf_code, threshold)
+            
+            return True
+            
+        except Exception:
+            return False
+    
+    def _create_cache_metadata(self, etf_code: str, threshold: str = "") -> bool:
+        """创建缓存元数据文件"""
+        try:
+            cache_key = self.get_cache_key(etf_code, threshold)
+            meta_file = os.path.join(self.meta_cache_dir, f"{cache_key}.json")
+            
+            # 获取源文件信息
+            source_file = self.config.get_etf_file_path(etf_code)
+            source_mtime = self.utils.get_file_modification_time(source_file) if os.path.exists(source_file) else None
+            
+            # 创建元数据
+            meta_data = {
+                'etf_code': etf_code,
+                'threshold': threshold,
+                'cache_timestamp': datetime.now().isoformat(),
+                'source_file_mtime': source_mtime,
+                'bb_config': {
+                    'period': self.config.get_bb_period(),
+                    'std_multiplier': self.config.get_bb_std_multiplier(),
+                    'adj_type': self.config.adj_type
+                },
+                'param_set': self.config.get_current_param_set_name()
+            }
+            
+            # 保存元数据文件
+            with open(meta_file, 'w', encoding='utf-8') as f:
+                json.dump(meta_data, f, ensure_ascii=False, indent=2)
             
             return True
             

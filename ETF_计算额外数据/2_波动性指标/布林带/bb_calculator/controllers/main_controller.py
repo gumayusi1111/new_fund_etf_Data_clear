@@ -34,6 +34,14 @@ class BBMainController:
         # 确保目录存在
         self.config.ensure_directories_exist()
     
+    def update_config(self, new_config):
+        """更新配置并重新初始化相关组件"""
+        self.config = new_config
+        self.data_reader = BBDataReader(self.config)
+        self.bb_engine = BollingerBandsEngine(self.config)  # 重新创建引擎
+        self.cache_manager = BBCacheManager(self.config)
+        self.csv_handler = BBCSVHandler(self.config)
+    
     def get_system_status(self) -> Dict[str, Any]:
         """获取系统状态"""
         status = {
@@ -116,6 +124,33 @@ class BBMainController:
             if not validation_result[0]:
                 result['error'] = f'计算验证失败: {validation_result[1].get("error", "未知错误")}'
                 return result
+            
+            # 生成完整历史数据用于缓存和输出
+            full_history_bb = self.bb_engine.calculate_full_history(etf_data)
+            if full_history_bb is not None:
+                # 格式化完整历史数据
+                formatted_rows = []
+                for idx, row in etf_data.iterrows():
+                    if idx < len(full_history_bb['bb_middle']):
+                        date_str = row['日期'].strftime('%Y-%m-%d') if pd.notna(row['日期']) else ''
+                        formatted_rows.append({
+                            'date': date_str,
+                            'code': etf_code,
+                            'bb_middle': full_history_bb['bb_middle'].iloc[idx] if not pd.isna(full_history_bb['bb_middle'].iloc[idx]) else '',
+                            'bb_upper': full_history_bb['bb_upper'].iloc[idx] if not pd.isna(full_history_bb['bb_upper'].iloc[idx]) else '',
+                            'bb_lower': full_history_bb['bb_lower'].iloc[idx] if not pd.isna(full_history_bb['bb_lower'].iloc[idx]) else '',
+                            'bb_width': full_history_bb['bb_width'].iloc[idx] if not pd.isna(full_history_bb['bb_width'].iloc[idx]) else '',
+                            'bb_position': full_history_bb['bb_position'].iloc[idx] if not pd.isna(full_history_bb['bb_position'].iloc[idx]) else '',
+                            'bb_percent_b': full_history_bb['bb_percent_b'].iloc[idx] if not pd.isna(full_history_bb['bb_percent_b'].iloc[idx]) else ''
+                        })
+                
+                # 按日期倒序排列（最新日期在前）
+                full_history_df = pd.DataFrame(formatted_rows)
+                if not full_history_df.empty and 'date' in full_history_df.columns:
+                    full_history_df['date_sort'] = pd.to_datetime(full_history_df['date'], errors='coerce')
+                    full_history_df = full_history_df.sort_values('date_sort', ascending=False).drop('date_sort', axis=1)
+                
+                result['full_history_data'] = full_history_df
             
             # 格式化输出数据
             if save_output:
