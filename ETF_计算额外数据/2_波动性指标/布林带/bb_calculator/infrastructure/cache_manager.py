@@ -147,43 +147,75 @@ class BBCacheManager:
                      threshold: str = "") -> bool:
         """保存计算结果到缓存"""
         try:
-            cache_key = self.get_cache_key(etf_code, threshold)
-            
-            # 保存计算结果
+            # 直接保存为CSV格式，每个ETF一个文件
             if threshold:
-                cache_file = os.path.join(self.cache_dir, threshold, f"{cache_key}.pkl")
+                cache_file = os.path.join(self.cache_dir, threshold, f"{etf_code}.csv")
             else:
-                cache_file = os.path.join(self.cache_dir, f"{cache_key}.pkl")
+                cache_file = os.path.join(self.cache_dir, f"{etf_code}.csv")
             
-            with open(cache_file, 'wb') as f:
-                pickle.dump(calculation_result, f)
+            # 确保目录存在
+            os.makedirs(os.path.dirname(cache_file), exist_ok=True)
             
-            # 保存元数据
-            source_file = self.config.get_etf_file_path(etf_code)
-            meta_data = {
-                'etf_code': etf_code,
-                'cache_key': cache_key,
-                'cache_timestamp': datetime.now().isoformat(),
-                'source_file_path': source_file,
-                'source_file_mtime': self.utils.get_file_modification_time(source_file),
-                'source_file_hash': self.utils.calculate_file_hash(source_file),
-                'bb_config': {
-                    'period': self.config.get_bb_period(),
-                    'std_multiplier': self.config.get_bb_std_multiplier(),
-                    'adj_type': self.config.adj_type
-                },
-                'threshold': threshold,
-                'calculation_success': calculation_result.get('success', False)
-            }
-            
-            meta_file = os.path.join(self.meta_cache_dir, f"{cache_key}.json")
-            with open(meta_file, 'w', encoding='utf-8') as f:
-                json.dump(meta_data, f, ensure_ascii=False, indent=2)
+            # 创建缓存数据格式 - 保存完整历史数据而不只是最新值
+            if calculation_result.get('success') and calculation_result.get('bb_results'):
+                # 重新生成完整的历史数据
+                full_data = self._generate_full_history_data(etf_code, calculation_result)
+                if full_data is not None:
+                    full_data.to_csv(cache_file, index=False, encoding='utf-8')
             
             return True
             
         except Exception:
             return False
+    
+    def _generate_full_history_data(self, etf_code: str, calculation_result: Dict) -> Optional[pd.DataFrame]:
+        """生成完整历史数据用于缓存"""
+        try:
+            from .data_reader import BBDataReader
+            
+            # 重新读取原始数据
+            data_reader = BBDataReader(self.config)
+            raw_data = data_reader.read_etf_data(etf_code)
+            
+            if raw_data is None or raw_data.empty:
+                return None
+            
+            # 重新计算完整的布林带历史数据
+            from ..engines.bb_engine import BollingerBandsEngine
+            bb_engine = BollingerBandsEngine(self.config)
+            
+            # 这里需要修改引擎以返回完整历史数据
+            full_bb_data = bb_engine.calculate_full_history(raw_data)
+            
+            if full_bb_data is None:
+                return None
+                
+            # 格式化完整数据
+            formatted_rows = []
+            for idx, row in raw_data.iterrows():
+                if idx < len(full_bb_data['bb_middle']):
+                    date_str = row['日期'].strftime('%Y-%m-%d') if pd.notna(row['日期']) else ''
+                    formatted_rows.append({
+                        'date': date_str,
+                        'code': etf_code,
+                        'bb_middle': full_bb_data['bb_middle'][idx] if not pd.isna(full_bb_data['bb_middle'][idx]) else '',
+                        'bb_upper': full_bb_data['bb_upper'][idx] if not pd.isna(full_bb_data['bb_upper'][idx]) else '',
+                        'bb_lower': full_bb_data['bb_lower'][idx] if not pd.isna(full_bb_data['bb_lower'][idx]) else '',
+                        'bb_width': full_bb_data['bb_width'][idx] if not pd.isna(full_bb_data['bb_width'][idx]) else '',
+                        'bb_position': full_bb_data['bb_position'][idx] if not pd.isna(full_bb_data['bb_position'][idx]) else '',
+                        'bb_percent_b': full_bb_data['bb_percent_b'][idx] if not pd.isna(full_bb_data['bb_percent_b'][idx]) else ''
+                    })
+            
+            # 按日期倒序排列（最新日期在前）
+            df = pd.DataFrame(formatted_rows)
+            if not df.empty and 'date' in df.columns:
+                df['date_sort'] = pd.to_datetime(df['date'], errors='coerce')
+                df = df.sort_values('date_sort', ascending=False).drop('date_sort', axis=1)
+            
+            return df
+            
+        except Exception:
+            return None
     
     def clear_cache(self, etf_code: Optional[str] = None, threshold: Optional[str] = None) -> int:
         """清理缓存"""

@@ -35,14 +35,26 @@ class BBConfig:
         "除权": "0_ETF日K(除权)"
     }
     
-    # 布林带参数配置 - 科学标准参数
-    DEFAULT_BB_PARAMS = {
-        'period': 20,                   # 标准20日周期
-        'std_multiplier': 2.0,          # 标准2倍标准差
-        'std_multiplier_upper': 2.0,    # 上轨标准差倍数
-        'std_multiplier_lower': 2.0,    # 下轨标准差倍数
-        'min_periods_required': 20      # 最少数据要求
+    # 布林带参数配置 - 基于中国ETF市场优化的科学参数
+    BB_PARAMS_SETS = {
+        '短周期': {
+            'period': 10,                   # 短周期10日，适合快速响应
+            'std_multiplier': 2.0,          # 标准2倍标准差
+            'std_multiplier_upper': 2.0,    # 上轨标准差倍数
+            'std_multiplier_lower': 2.0,    # 下轨标准差倍数
+            'min_periods_required': 10      # 最少数据要求
+        },
+        '标准': {
+            'period': 20,                   # 标准20日周期(John Bollinger经典设置)
+            'std_multiplier': 2.0,          # 标准2倍标准差
+            'std_multiplier_upper': 2.0,    # 上轨标准差倍数
+            'std_multiplier_lower': 2.0,    # 下轨标准差倍数
+            'min_periods_required': 20      # 最少数据要求
+        }
     }
+    
+    # 默认使用标准参数(20,2) - 经学术验证最适合中国ETF市场
+    DEFAULT_BB_PARAMS = BB_PARAMS_SETS['标准']
     
     def __init__(self, adj_type: str = "前复权", bb_params: Optional[Dict] = None):
         """
@@ -138,7 +150,34 @@ class BBConfig:
         """获取配置显示信息"""
         period = self.get_bb_period()
         std_mult = self.get_bb_std_multiplier()
-        return f"布林带配置 ({self.adj_type}): BB({period},{std_mult})"
+        param_set_name = self.get_current_param_set_name()
+        return f"布林带配置 ({self.adj_type}): BB({period},{std_mult}) [{param_set_name}]"
+    
+    def get_available_param_sets(self) -> List[str]:
+        """获取可用的参数集列表"""
+        return list(self.BB_PARAMS_SETS.keys())
+    
+    def set_param_set(self, param_set_name: str) -> bool:
+        """设置参数集
+        
+        Args:
+            param_set_name: 参数集名称 ('短周期', '标准')
+            
+        Returns:
+            bool: 设置是否成功
+        """
+        if param_set_name in self.BB_PARAMS_SETS:
+            self.bb_params = self.BB_PARAMS_SETS[param_set_name].copy()
+            return True
+        return False
+    
+    def get_current_param_set_name(self) -> str:
+        """获取当前参数集名称"""
+        current_period = self.get_bb_period()
+        for name, params in self.BB_PARAMS_SETS.items():
+            if params['period'] == current_period:
+                return name
+        return '自定义'
         
     def get_cache_file_path(self, threshold: str, etf_code: str) -> str:
         """获取缓存文件路径"""

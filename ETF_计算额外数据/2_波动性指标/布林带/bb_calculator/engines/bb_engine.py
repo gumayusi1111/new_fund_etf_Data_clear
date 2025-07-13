@@ -222,11 +222,58 @@ class BollingerBandsEngine:
                 if col in result_df.columns:
                     result_df[col] = result_df[col].round(self.precision)
             
-            return result_df
+            return result
             
         except Exception as e:
             return pd.DataFrame()
     
+    def calculate_full_history(self, df: pd.DataFrame) -> Optional[Dict]:
+        """计算完整的布林带历史数据序列"""
+        if df is None or df.empty:
+            return None
+            
+        # 数据验证：确保有足够的数据点
+        if len(df) < self.period:
+            return None
+        
+        try:
+            # 获取收盘价序列并清理数据
+            prices = df['收盘价'].copy()
+            prices = prices.dropna()
+            
+            if len(prices) < self.period:
+                return None
+            
+            # 科学布林带计算 - 完整历史序列
+            middle_band = self._calculate_sma(prices, self.period)
+            rolling_std = self._calculate_rolling_std(prices, self.period)
+            
+            # 计算上下轨 - 完整序列
+            upper_band = middle_band + (self.std_multiplier * rolling_std)
+            lower_band = middle_band - (self.std_multiplier * rolling_std)
+            
+            # 计算衍生指标 - 完整序列
+            bb_width = ((upper_band - lower_band) / middle_band * 100).round(8)
+            bb_position = ((prices - lower_band) / (upper_band - lower_band) * 100).round(8)
+            bb_percent_b = bb_position / 100
+            
+            # 确保所有序列长度一致
+            min_length = min(len(middle_band), len(upper_band), len(lower_band), 
+                           len(bb_width), len(bb_position), len(bb_percent_b))
+            
+            result = {
+                'bb_middle': middle_band.iloc[:min_length].round(8),
+                'bb_upper': upper_band.iloc[:min_length].round(8), 
+                'bb_lower': lower_band.iloc[:min_length].round(8),
+                'bb_width': bb_width.iloc[:min_length],
+                'bb_position': bb_position.iloc[:min_length],
+                'bb_percent_b': bb_percent_b.iloc[:min_length].round(8)
+            }
+            
+            return result
+            
+        except Exception as e:
+            return None
     def _calculate_bb_width_vectorized(self, upper: pd.Series, lower: pd.Series, 
                                       middle: pd.Series) -> pd.Series:
         """向量化计算布林带宽度"""

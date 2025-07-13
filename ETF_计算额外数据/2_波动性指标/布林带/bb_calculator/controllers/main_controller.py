@@ -14,7 +14,9 @@ from typing import Dict, List, Optional, Any
 from ..infrastructure.config import BBConfig
 from ..infrastructure.data_reader import BBDataReader
 from ..infrastructure.utils import BBUtils
+from ..infrastructure.cache_manager import BBCacheManager
 from ..engines.bb_engine import BollingerBandsEngine
+from ..outputs.csv_handler import BBCSVHandler
 
 
 class BBMainController:
@@ -26,6 +28,8 @@ class BBMainController:
         self.data_reader = BBDataReader(self.config)
         self.utils = BBUtils()
         self.bb_engine = BollingerBandsEngine(self.config)
+        self.cache_manager = BBCacheManager(self.config)
+        self.csv_handler = BBCSVHandler(self.config)
         
         # 确保目录存在
         self.config.ensure_directories_exist()
@@ -84,6 +88,14 @@ class BBMainController:
         start_time = time.time()
         
         try:
+            # 先检查缓存
+            cached_result = self.cache_manager.get_cached_result(etf_code)
+            if cached_result and cached_result.get('success'):
+                result.update(cached_result)
+                result['processing_time'] = time.time() - start_time
+                result['from_cache'] = True
+                return result
+            
             # 读取ETF数据
             etf_data = self.data_reader.read_etf_data(etf_code)
             if etf_data is None or etf_data.empty:
@@ -114,6 +126,10 @@ class BBMainController:
             result['success'] = True
             result['bb_results'] = bb_results
             result['processing_time'] = time.time() - start_time
+            result['from_cache'] = False
+            
+            # 单个ETF处理不保存到缓存，避免根目录混乱
+            # 缓存只在批量处理时保存到门槛目录
             
         except Exception as e:
             result['error'] = str(e)
@@ -227,11 +243,18 @@ class BBMainController:
             
             for etf_code in etf_list:
                 try:
-                    process_result = self.process_single_etf(etf_code, save_output=False)
+                    process_result = self.process_single_etf(etf_code, save_output=True)
                     
                     if process_result['success']:
                         successful_results[etf_code] = process_result
                         threshold_result['successful_etfs'] += 1
+                        
+                        # 保存到门槛缓存目录（不保存到根目录）
+                        try:
+                            clean_etf_code = self.utils.format_etf_code(etf_code)
+                            self.cache_manager.save_to_cache(clean_etf_code, process_result, threshold)
+                        except Exception:
+                            pass
                     else:
                         failed_etfs.append({
                             'etf_code': etf_code,
@@ -250,7 +273,60 @@ class BBMainController:
             threshold_result['failed_details'] = failed_etfs
             threshold_result['success'] = True
             
+            # 保存批量结果到CSV
+            if successful_results:
+                try:
+                    csv_saved = self.csv_handler.create_batch_csv(threshold_result, threshold)
+                    threshold_result['csv_saved'] = csv_saved
+                except Exception as e:
+                    threshold_result['csv_error'] = str(e)
+            
+            # 创建或更新meta文件
+            self._update_meta_file(threshold, threshold_result)
+            
         except Exception as e:
             threshold_result['error'] = str(e)
         
         return threshold_result
+    
+    def _update_meta_file(self, threshold: str, threshold_result: Dict) -> None:
+        """更新meta文件，参考MACD格式"""
+        try:
+            import json
+            import os
+            from datetime import datetime
+            
+            meta_file = os.path.join(self.config.cache_dir, "meta", f"{threshold}_meta.json")
+            
+            # 创建meta数据
+            meta_data = {
+                "threshold": threshold,
+                "last_update": datetime.now().isoformat(),
+                "total_etfs": threshold_result.get('successful_etfs', 0) + threshold_result.get('failed_etfs', 0),
+                "bb_config": {
+                    "cached_etfs_count": threshold_result.get('successful_etfs', 0),
+                    "bb_params": {
+                        "period": self.config.get_bb_period(),
+                        "std_multiplier": self.config.get_bb_std_multiplier(),
+                        "adj_type": self.config.adj_type
+                    },
+                    "last_calculation": datetime.now().isoformat()
+                },
+                "cache_created": datetime.now().isoformat(),
+                "processing_stats": {
+                    "total_cache_hits": 0,
+                    "total_new_calculations": threshold_result.get('successful_etfs', 0),
+                    "total_failed_count": threshold_result.get('failed_etfs', 0),
+                    "success_rate": (threshold_result.get('successful_etfs', 0) / max(threshold_result.get('successful_etfs', 0) + threshold_result.get('failed_etfs', 0), 1)) * 100
+                }
+            }
+            
+            # 确保meta目录存在
+            os.makedirs(os.path.dirname(meta_file), exist_ok=True)
+            
+            # 保存meta文件
+            with open(meta_file, 'w', encoding='utf-8') as f:
+                json.dump(meta_data, f, ensure_ascii=False, indent=2)
+                
+        except Exception:
+            pass

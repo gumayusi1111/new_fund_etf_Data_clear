@@ -138,8 +138,15 @@ class BBDataReader:
     def _process_date_column(self, df: pd.DataFrame) -> pd.DataFrame:
         """处理日期列"""
         try:
-            # 转换日期格式
-            df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
+            # 检查日期格式并转换
+            if '日期' in df.columns:
+                # 如果日期是YYYYMMDD格式，先转换为字符串再处理
+                if df['日期'].dtype == 'int64' or df['日期'].dtype == 'float64':
+                    df['日期'] = df['日期'].astype(str)
+                    df['日期'] = pd.to_datetime(df['日期'], format='%Y%m%d', errors='coerce')
+                else:
+                    # 尝试多种日期格式
+                    df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
             
             # 移除无效日期
             df = df.dropna(subset=['日期'])
