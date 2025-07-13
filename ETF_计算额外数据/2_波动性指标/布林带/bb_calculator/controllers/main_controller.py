@@ -5,6 +5,7 @@
 ============
 
 协调各个组件，提供统一的对外接口
+<<<<<<< HEAD
 参照趋势类指标的控制器模式
 """
 
@@ -15,6 +16,17 @@ from ..infrastructure.config import BBConfig
 from ..infrastructure.data_reader import BBDataReader
 from ..infrastructure.utils import BBUtils
 from ..infrastructure.cache_manager import BBCacheManager
+=======
+"""
+
+import time
+from typing import Dict, List, Optional, Any
+from ..infrastructure.config import BBConfig
+from ..infrastructure.data_reader import BBDataReader
+from ..infrastructure.cache_manager import BBCacheManager
+from ..infrastructure.file_manager import BBFileManager
+from ..infrastructure.utils import BBUtils
+>>>>>>> feature/volatility-indicators
 from ..engines.bb_engine import BollingerBandsEngine
 from ..outputs.csv_handler import BBCSVHandler
 
@@ -26,14 +38,22 @@ class BBMainController:
         """初始化主控制器"""
         self.config = BBConfig(adj_type=adj_type)
         self.data_reader = BBDataReader(self.config)
+<<<<<<< HEAD
         self.utils = BBUtils()
         self.bb_engine = BollingerBandsEngine(self.config)
         self.cache_manager = BBCacheManager(self.config)
+=======
+        self.cache_manager = BBCacheManager(self.config)
+        self.file_manager = BBFileManager(self.config)
+        self.utils = BBUtils()
+        self.bb_engine = BollingerBandsEngine(self.config)
+>>>>>>> feature/volatility-indicators
         self.csv_handler = BBCSVHandler(self.config)
         
         # 确保目录存在
         self.config.ensure_directories_exist()
     
+<<<<<<< HEAD
     def update_config(self, new_config):
         """更新配置并重新初始化相关组件"""
         self.config = new_config
@@ -42,6 +62,8 @@ class BBMainController:
         self.cache_manager = BBCacheManager(self.config)
         self.csv_handler = BBCSVHandler(self.config)
     
+=======
+>>>>>>> feature/volatility-indicators
     def get_system_status(self) -> Dict[str, Any]:
         """获取系统状态"""
         status = {
@@ -60,6 +82,7 @@ class BBMainController:
                 'output_dir': self.config.default_output_dir,
                 'data_dir_exists': self.config.validate_data_path()
             },
+<<<<<<< HEAD
             'algorithm': {
                 'name': 'John Bollinger Standard Algorithm',
                 'year': '1983',
@@ -69,17 +92,31 @@ class BBMainController:
                     'precision': self.config.get_precision()
                 }
             }
+=======
+            'cache_stats': self.cache_manager.get_cache_statistics(),
+            'output_stats': self.file_manager.get_all_statistics()
+>>>>>>> feature/volatility-indicators
         }
         
         return status
     
+<<<<<<< HEAD
     def process_single_etf(self, etf_code: str, save_output: bool = True) -> Dict[str, Any]:
+=======
+    def process_single_etf(self, etf_code: str, threshold: Optional[str] = None, 
+                          use_cache: bool = True) -> Dict[str, Any]:
+>>>>>>> feature/volatility-indicators
         """
         处理单个ETF的布林带计算
         
         Args:
             etf_code: ETF代码
+<<<<<<< HEAD
             save_output: 是否保存输出文件
+=======
+            threshold: 门槛（用于缓存和输出路径）
+            use_cache: 是否使用缓存
+>>>>>>> feature/volatility-indicators
             
         Returns:
             Dict[str, Any]: 处理结果
@@ -87,15 +124,23 @@ class BBMainController:
         result = {
             'success': False,
             'etf_code': etf_code,
+<<<<<<< HEAD
             'bb_results': {},
             'processing_time': 0,
             'validation_result': {},
+=======
+            'threshold': threshold,
+            'bb_results': {},
+            'cache_used': False,
+            'processing_time': 0,
+>>>>>>> feature/volatility-indicators
             'error': None
         }
         
         start_time = time.time()
         
         try:
+<<<<<<< HEAD
             # 先检查缓存
             cached_result = self.cache_manager.get_cached_result(etf_code)
             if cached_result and cached_result.get('success'):
@@ -104,12 +149,26 @@ class BBMainController:
                 result['from_cache'] = True
                 return result
             
+=======
+>>>>>>> feature/volatility-indicators
             # 读取ETF数据
             etf_data = self.data_reader.read_etf_data(etf_code)
             if etf_data is None or etf_data.empty:
                 result['error'] = f'无法读取ETF数据: {etf_code}'
                 return result
             
+<<<<<<< HEAD
+=======
+            # 检查缓存
+            if use_cache and threshold:
+                cached_data = self.cache_manager.load_cache(threshold, etf_code)
+                if cached_data is not None:
+                    result['success'] = True
+                    result['cache_used'] = True
+                    result['bb_results'] = cached_data.to_dict('records')
+                    return result
+            
+>>>>>>> feature/volatility-indicators
             # 计算布林带指标
             bb_results = self.bb_engine.calculate_bollinger_bands(etf_data)
             
@@ -117,6 +176,7 @@ class BBMainController:
                 result['error'] = f'布林带计算失败: {etf_code}'
                 return result
             
+<<<<<<< HEAD
             # 验证计算结果
             validation_result = self.bb_engine.verify_calculation(etf_data, bb_results)
             result['validation_result'] = validation_result[1]
@@ -157,20 +217,49 @@ class BBMainController:
                 formatted_data = self._format_bb_result(etf_code, etf_data, bb_results)
                 if formatted_data:
                     result['formatted_data'] = formatted_data
+=======
+            # 格式化输出数据
+            formatted_df = self.csv_handler.format_bb_result_to_dataframe(
+                etf_code, etf_data, bb_results
+            )
+            
+            if formatted_df.empty:
+                result['error'] = f'数据格式化失败: {etf_code}'
+                return result
+            
+            # 保存缓存
+            if threshold and use_cache:
+                self.cache_manager.save_cache(threshold, etf_code, formatted_df)
+            
+            # 保存输出文件
+            if threshold:
+                output_path = self.config.get_output_file_path(threshold, etf_code)
+                save_result = self.csv_handler.save_bb_data_to_csv(
+                    etf_code, formatted_df, output_path
+                )
+                
+                if not save_result['success']:
+                    result['error'] = f'保存文件失败: {save_result["error"]}'
+                    return result
+>>>>>>> feature/volatility-indicators
             
             result['success'] = True
             result['bb_results'] = bb_results
             result['processing_time'] = time.time() - start_time
+<<<<<<< HEAD
             result['from_cache'] = False
             
             # 单个ETF处理不保存到缓存，避免根目录混乱
             # 缓存只在批量处理时保存到门槛目录
+=======
+>>>>>>> feature/volatility-indicators
             
         except Exception as e:
             result['error'] = str(e)
         
         return result
     
+<<<<<<< HEAD
     def _format_bb_result(self, etf_code: str, raw_data, bb_results: Dict) -> Optional[Dict]:
         """格式化布林带结果"""
         try:
@@ -208,6 +297,16 @@ class BBMainController:
         
         Args:
             thresholds: 门槛列表
+=======
+    def calculate_and_save_screening_results(self, thresholds: List[str], 
+                                           use_cache: bool = True) -> Dict[str, Any]:
+        """
+        基于ETF初筛结果进行批量计算和保存
+        
+        Args:
+            thresholds: 门槛列表
+            use_cache: 是否使用缓存
+>>>>>>> feature/volatility-indicators
             
         Returns:
             Dict[str, Any]: 批量处理结果
@@ -219,6 +318,12 @@ class BBMainController:
             'failed_etfs': 0,
             'thresholds_processed': len(thresholds),
             'processing_time_seconds': 0,
+<<<<<<< HEAD
+=======
+            'output_directory': self.config.default_output_dir,
+            'save_statistics': {},
+            'cache_statistics': {},
+>>>>>>> feature/volatility-indicators
             'threshold_details': {},
             'errors': []
         }
@@ -228,14 +333,27 @@ class BBMainController:
         try:
             total_successful = 0
             total_failed = 0
+<<<<<<< HEAD
             
             for threshold in thresholds:
                 threshold_result = self._process_threshold(threshold)
+=======
+            all_save_results = []
+            
+            for threshold in thresholds:
+                threshold_result = self._process_threshold(threshold, use_cache)
+>>>>>>> feature/volatility-indicators
                 result['threshold_details'][threshold] = threshold_result
                 
                 if threshold_result['success']:
                     total_successful += threshold_result['successful_etfs']
                     total_failed += threshold_result['failed_etfs']
+<<<<<<< HEAD
+=======
+                    
+                    if 'save_statistics' in threshold_result:
+                        all_save_results.append(threshold_result['save_statistics'])
+>>>>>>> feature/volatility-indicators
                 else:
                     result['errors'].append(f"{threshold}: {threshold_result.get('error', '未知错误')}")
             
@@ -244,6 +362,16 @@ class BBMainController:
             result['failed_etfs'] = total_failed
             result['processing_time_seconds'] = time.time() - start_time
             
+<<<<<<< HEAD
+=======
+            # 汇总保存统计
+            if all_save_results:
+                result['save_statistics'] = self._summarize_save_stats(all_save_results)
+            
+            # 获取缓存统计
+            result['cache_statistics'] = self.cache_manager.get_cache_statistics()
+            
+>>>>>>> feature/volatility-indicators
             result['success'] = len(result['errors']) == 0
             
         except Exception as e:
@@ -251,7 +379,11 @@ class BBMainController:
         
         return result
     
+<<<<<<< HEAD
     def _process_threshold(self, threshold: str) -> Dict[str, Any]:
+=======
+    def _process_threshold(self, threshold: str, use_cache: bool = True) -> Dict[str, Any]:
+>>>>>>> feature/volatility-indicators
         """处理单个门槛的ETF列表"""
         threshold_result = {
             'success': False,
@@ -259,7 +391,11 @@ class BBMainController:
             'etf_list': [],
             'successful_etfs': 0,
             'failed_etfs': 0,
+<<<<<<< HEAD
             'results': {},
+=======
+            'save_statistics': {},
+>>>>>>> feature/volatility-indicators
             'error': None
         }
         
@@ -273,11 +409,16 @@ class BBMainController:
             threshold_result['etf_list'] = etf_list
             
             # 批量处理ETF
+<<<<<<< HEAD
             successful_results = {}
+=======
+            successful_data = {}
+>>>>>>> feature/volatility-indicators
             failed_etfs = []
             
             for etf_code in etf_list:
                 try:
+<<<<<<< HEAD
                     process_result = self.process_single_etf(etf_code, save_output=True)
                     
                     if process_result['success']:
@@ -290,6 +431,17 @@ class BBMainController:
                             self.cache_manager.save_to_cache(clean_etf_code, process_result, threshold)
                         except Exception:
                             pass
+=======
+                    process_result = self.process_single_etf(etf_code, threshold, use_cache)
+                    
+                    if process_result['success']:
+                        # 读取保存的数据
+                        output_path = self.config.get_output_file_path(threshold, etf_code)
+                        saved_data = self.csv_handler.load_bb_data_from_csv(output_path)
+                        if saved_data is not None:
+                            successful_data[etf_code] = saved_data
+                        threshold_result['successful_etfs'] += 1
+>>>>>>> feature/volatility-indicators
                     else:
                         failed_etfs.append({
                             'etf_code': etf_code,
@@ -304,6 +456,7 @@ class BBMainController:
                     })
                     threshold_result['failed_etfs'] += 1
             
+<<<<<<< HEAD
             threshold_result['results'] = successful_results
             threshold_result['failed_details'] = failed_etfs
             threshold_result['success'] = True
@@ -319,11 +472,21 @@ class BBMainController:
             # 创建或更新meta文件
             self._update_meta_file(threshold, threshold_result)
             
+=======
+            # 生成保存统计
+            threshold_result['save_statistics'] = self._generate_save_statistics(
+                threshold, successful_data, failed_etfs
+            )
+            
+            threshold_result['success'] = True
+            
+>>>>>>> feature/volatility-indicators
         except Exception as e:
             threshold_result['error'] = str(e)
         
         return threshold_result
     
+<<<<<<< HEAD
     def _update_meta_file(self, threshold: str, threshold_result: Dict) -> None:
         """更新meta文件，参考MACD格式"""
         try:
@@ -365,3 +528,97 @@ class BBMainController:
                 
         except Exception:
             pass
+=======
+    def _generate_save_statistics(self, threshold: str, successful_data: Dict, 
+                                failed_etfs: List) -> Dict[str, Any]:
+        """生成保存统计信息"""
+        stats = {
+            'threshold': threshold,
+            'total_files_saved': len(successful_data),
+            'total_failed_files': len(failed_etfs),
+            'total_size_bytes': 0,
+            'total_records': 0,
+            'failed_details': failed_etfs
+        }
+        
+        # 计算文件大小和记录数
+        for etf_code, data in successful_data.items():
+            if not data.empty:
+                stats['total_records'] += len(data)
+                
+                # 估算文件大小
+                output_path = self.config.get_output_file_path(threshold, etf_code)
+                file_size = self.utils.get_file_size_mb(output_path)
+                if file_size:
+                    stats['total_size_bytes'] += file_size * 1024 * 1024
+        
+        return stats
+    
+    def _summarize_save_stats(self, save_stats_list: List[Dict]) -> Dict[str, Any]:
+        """汇总多个门槛的保存统计"""
+        summary = {
+            'total_files_saved': 0,
+            'total_failed_files': 0,
+            'total_size_bytes': 0,
+            'total_records': 0,
+            'threshold_breakdown': {}
+        }
+        
+        for stats in save_stats_list:
+            summary['total_files_saved'] += stats.get('total_files_saved', 0)
+            summary['total_failed_files'] += stats.get('total_failed_files', 0)
+            summary['total_size_bytes'] += stats.get('total_size_bytes', 0)
+            summary['total_records'] += stats.get('total_records', 0)
+            
+            threshold = stats.get('threshold', 'unknown')
+            summary['threshold_breakdown'][threshold] = stats
+        
+        return summary
+    
+    def calculate_historical_batch(self, thresholds: List[str], 
+                                  verbose: bool = False) -> Dict[str, Any]:
+        """
+        超高性能批量历史计算
+        
+        Args:
+            thresholds: 门槛列表
+            verbose: 是否详细输出
+            
+        Returns:
+            Dict[str, Any]: 批量计算结果
+        """
+        result = {
+            'success': False,
+            'total_etfs_processed': 0,
+            'successful_etfs': 0,
+            'failed_etfs': 0,
+            'thresholds_processed': len(thresholds),
+            'processing_time_seconds': 0,
+            'etfs_per_second': 0,
+            'output_directory': self.config.default_output_dir,
+            'save_statistics': {},
+            'threshold_details': {},
+            'errors': []
+        }
+        
+        start_time = time.time()
+        
+        try:
+            # 使用普通的批量处理方法
+            batch_result = self.calculate_and_save_screening_results(thresholds, use_cache=True)
+            
+            # 复制结果
+            result.update(batch_result)
+            
+            # 计算处理速度
+            processing_time = time.time() - start_time
+            result['processing_time_seconds'] = processing_time
+            
+            if processing_time > 0 and result['total_etfs_processed'] > 0:
+                result['etfs_per_second'] = round(result['total_etfs_processed'] / processing_time, 2)
+            
+        except Exception as e:
+            result['error'] = str(e)
+        
+        return result
+>>>>>>> feature/volatility-indicators

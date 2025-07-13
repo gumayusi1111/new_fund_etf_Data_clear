@@ -5,19 +5,31 @@
 ==============
 
 负责ETF数据的读取、预处理和验证
+<<<<<<< HEAD
 参照趋势类指标的数据读取模式
+=======
+>>>>>>> feature/volatility-indicators
 """
 
 import pandas as pd
 import os
+<<<<<<< HEAD
 from typing import Optional, Dict, List
+=======
+from typing import Optional, Dict, List, Tuple
+from .config import BBConfig
+>>>>>>> feature/volatility-indicators
 from .utils import BBUtils
 
 
 class BBDataReader:
     """布林带数据读取器"""
     
+<<<<<<< HEAD
     def __init__(self, config):
+=======
+    def __init__(self, config: BBConfig):
+>>>>>>> feature/volatility-indicators
         """初始化数据读取器"""
         self.config = config
         self.utils = BBUtils()
@@ -138,6 +150,7 @@ class BBDataReader:
     def _process_date_column(self, df: pd.DataFrame) -> pd.DataFrame:
         """处理日期列"""
         try:
+<<<<<<< HEAD
             # 检查日期格式并转换
             if '日期' in df.columns:
                 # 如果日期是YYYYMMDD格式，先转换为字符串再处理
@@ -147,6 +160,10 @@ class BBDataReader:
                 else:
                     # 尝试多种日期格式
                     df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
+=======
+            # 转换日期格式
+            df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
+>>>>>>> feature/volatility-indicators
             
             # 移除无效日期
             df = df.dropna(subset=['日期'])
@@ -183,8 +200,47 @@ class BBDataReader:
         # 移除重复日期（保留最后一个）
         df = df.drop_duplicates(subset=['日期'], keep='last')
         
+<<<<<<< HEAD
         return df
     
+=======
+        # 移除异常价格数据（例如价格变化超过50%的异常数据）
+        df = self._filter_price_outliers(df)
+        
+        return df
+    
+    def _filter_price_outliers(self, df: pd.DataFrame) -> pd.DataFrame:
+        """过滤价格异常值"""
+        if len(df) < 2:
+            return df
+        
+        try:
+            # 计算价格变化率
+            df = df.copy()
+            df['price_change_pct'] = df['收盘价'].pct_change()
+            
+            # 移除价格变化率超过50%的数据点（可能是错误数据）
+            # 保守一些，避免移除正常的涨跌停数据
+            outlier_threshold = 0.5  # 50%
+            
+            # 标记异常值
+            outliers = (df['price_change_pct'].abs() > outlier_threshold) & (df['price_change_pct'].notna())
+            
+            # 如果异常值太多，不进行过滤
+            if outliers.sum() > len(df) * 0.1:  # 如果超过10%的数据是异常值，不过滤
+                df = df.drop('price_change_pct', axis=1)
+                return df
+            
+            # 移除异常值
+            df = df[~outliers]
+            df = df.drop('price_change_pct', axis=1)
+            
+            return df
+            
+        except Exception:
+            return df
+    
+>>>>>>> feature/volatility-indicators
     def _validate_data(self, df: pd.DataFrame) -> bool:
         """验证数据质量"""
         validation_result = self.utils.validate_etf_data_structure(df)
@@ -207,4 +263,119 @@ class BBDataReader:
         if price_range['min'] <= 0 or price_range['max'] > 10000:  # ETF价格通常不会超过1万
             return False
         
+<<<<<<< HEAD
         return True
+=======
+        return True
+    
+    def read_multiple_etf_data(self, etf_codes: List[str]) -> Dict[str, Optional[pd.DataFrame]]:
+        """
+        批量读取多个ETF数据
+        
+        Args:
+            etf_codes: ETF代码列表
+            
+        Returns:
+            Dict[str, Optional[pd.DataFrame]]: ETF代码到数据的映射
+        """
+        results = {}
+        
+        for etf_code in etf_codes:
+            try:
+                df = self.read_etf_data(etf_code)
+                results[etf_code] = df
+            except Exception:
+                results[etf_code] = None
+        
+        return results
+    
+    def get_etf_data_info(self, etf_code: str) -> Dict:
+        """
+        获取ETF数据信息
+        
+        Args:
+            etf_code: ETF代码
+            
+        Returns:
+            Dict: 数据信息
+        """
+        info = {
+            'etf_code': etf_code,
+            'file_exists': False,
+            'file_path': '',
+            'file_size_mb': None,
+            'data_available': False,
+            'row_count': 0,
+            'date_range': None,
+            'price_range': None,
+            'data_quality': 'unknown'
+        }
+        
+        file_path = self.config.get_etf_file_path(etf_code)
+        info['file_path'] = file_path
+        info['file_exists'] = os.path.exists(file_path)
+        
+        if info['file_exists']:
+            info['file_size_mb'] = self.utils.get_file_size_mb(file_path)
+            
+            # 尝试读取数据
+            df = self.read_etf_data(etf_code)
+            if df is not None:
+                info['data_available'] = True
+                info['row_count'] = len(df)
+                
+                validation_result = self.utils.validate_etf_data_structure(df)
+                info['date_range'] = validation_result.get('date_range')
+                info['price_range'] = validation_result.get('price_range')
+                info['data_quality'] = 'good' if validation_result['is_valid'] else 'poor'
+            else:
+                info['data_quality'] = 'poor'
+        
+        return info
+    
+    def check_data_freshness(self, etf_code: str) -> Dict:
+        """
+        检查数据新鲜度
+        
+        Args:
+            etf_code: ETF代码
+            
+        Returns:
+            Dict: 新鲜度信息
+        """
+        freshness_info = {
+            'etf_code': etf_code,
+            'file_modification_time': None,
+            'last_data_date': None,
+            'data_age_days': None,
+            'is_fresh': False
+        }
+        
+        file_path = self.config.get_etf_file_path(etf_code)
+        
+        # 检查文件修改时间
+        mod_time = self.utils.get_file_modification_time(file_path)
+        if mod_time:
+            freshness_info['file_modification_time'] = mod_time
+        
+        # 读取数据检查最新日期
+        df = self.read_etf_data(etf_code)
+        if df is not None and not df.empty:
+            try:
+                last_date = df['日期'].max()
+                freshness_info['last_data_date'] = str(last_date.date()) if pd.notna(last_date) else None
+                
+                # 计算数据年龄
+                if pd.notna(last_date):
+                    current_date = pd.Timestamp.now()
+                    age_days = (current_date - last_date).days
+                    freshness_info['data_age_days'] = age_days
+                    
+                    # 如果数据在3天内更新，认为是新鲜的
+                    freshness_info['is_fresh'] = age_days <= 3
+                    
+            except Exception:
+                pass
+        
+        return freshness_info
+>>>>>>> feature/volatility-indicators
