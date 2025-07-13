@@ -8,6 +8,7 @@
 """
 
 import os
+import pandas as pd
 from datetime import datetime
 from typing import Dict, Optional, Any
 from ..infrastructure.config import VolatilityConfig
@@ -141,8 +142,8 @@ class VolatilityETFProcessor:
                             'trend_direction': 'increasing' if vol_change > 5 else 'decreasing' if vol_change < -5 else 'stable'
                         }
             
-            # 价格振幅分析
-            price_range = volatility_values.get('Price_Range')
+            # 价格振幅分析（按第一大类标准使用小写字段名）
+            price_range = volatility_values.get('price_range')
             if price_range is not None:
                 if price_range > 5.0:
                     range_level = '高振幅'
@@ -156,9 +157,9 @@ class VolatilityETFProcessor:
                     'range_level': range_level
                 }
             
-            # 波动率特征分析
-            vol_10 = volatility_values.get('Volatility_10')
-            vol_20 = volatility_values.get('Volatility_20')
+            # 波动率特征分析（按第一大类标准使用小写字段名）
+            vol_10 = volatility_values.get('vol_10')
+            vol_20 = volatility_values.get('vol_20')
             
             if vol_10 is not None and vol_20 is not None:
                 analysis['volatility_characteristics'] = {

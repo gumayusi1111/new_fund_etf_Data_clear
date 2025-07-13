@@ -12,10 +12,10 @@
 5. 结果处理完善 - CSV导出、统计分析、趋势分析
 
 支持的波动率指标：
-- VOL_10, VOL_20, VOL_30, VOL_60: 各周期历史波动率
+- VOL_10, VOL_20, VOL_30: 各周期历史波动率
 - ROLLING_VOL_10, ROLLING_VOL_30: 滚动波动率
 - PRICE_RANGE: 价格振幅百分比
-- VOL_RATIO_20_60: 短期/长期波动率比率
+- VOL_RATIO_20_30: 短期/中期波动率比率
 - VOL_STATE: 波动率状态 (HIGH/MEDIUM/NORMAL/LOW)
 - VOL_LEVEL: 波动率水平 (EXTREME_HIGH/HIGH/MEDIUM/LOW)
 """
@@ -85,7 +85,7 @@ def test_system_functionality():
         # 初始化控制器
         controller = VolatilityMainController(
             adj_type="前复权", 
-            volatility_periods=[10, 20, 30, 60],
+            volatility_periods=[10, 20, 30],
             enable_cache=True,
             annualized=True
         )
@@ -113,7 +113,7 @@ def test_system_functionality():
         if result:
             print(f"   ✅ 快速分析成功")
             volatility_values = result.get('volatility_values', {})
-            print(f"   📈 波动率指标数量: {len([k for k in volatility_values.keys() if k.startswith('VOL_')])}")
+            print(f"   📈 波动率指标数量: {len([k for k in volatility_values.keys() if k.startswith('vol_')])}")
         else:
             print(f"   ❌ 快速分析失败")
         
@@ -241,8 +241,8 @@ def main():
             
             if result:
                 print(f"\n✅ 分析完成")
-                print(f"📊 波动率状态: {result.get('volatility_values', {}).get('VOL_STATE', 'Unknown')}")
-                print(f"📈 波动率水平: {result.get('volatility_values', {}).get('VOL_LEVEL', 'Unknown')}")
+                print(f"📊 波动率状态: {result.get('volatility_values', {}).get('vol_state', 'Unknown')}")
+                print(f"📈 波动率水平: {result.get('volatility_values', {}).get('vol_level', 'Unknown')}")
             else:
                 print(f"\n❌ 分析失败")
             return

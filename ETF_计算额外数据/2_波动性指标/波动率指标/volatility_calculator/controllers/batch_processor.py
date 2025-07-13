@@ -169,9 +169,15 @@ class VolatilityBatchProcessor:
             if cached_df is None:
                 return None
             
+            # 优化：一次读取源文件，避免重复读取
+            try:
+                source_df = pd.read_csv(source_file_path, encoding='utf-8')
+            except Exception:
+                source_df = None
+            
             # 检查是否需要增量更新
-            if self._needs_incremental_update(cached_df, source_file_path):
-                return self._perform_incremental_update(etf_code, cached_df, threshold)
+            if self._needs_incremental_update(cached_df, source_file_path, source_df):
+                return self._perform_incremental_update(etf_code, cached_df, threshold, source_df)
             
             # 从缓存元数据构建结果
             if meta_data and 'volatility_values' in meta_data:
@@ -190,33 +196,37 @@ class VolatilityBatchProcessor:
                 print(f"   ⚠️ 缓存加载异常 {etf_code}: {str(e)}")
             return None
     
-    def _needs_incremental_update(self, cached_df: pd.DataFrame, source_file_path: str) -> bool:
+    def _needs_incremental_update(self, cached_df: pd.DataFrame, source_file_path: str, 
+                                 source_df: Optional[pd.DataFrame] = None) -> bool:
         """
-        检查是否需要增量更新
+        检查是否需要增量更新（优化：避免重复读取文件）
         
         Args:
             cached_df: 缓存数据
             source_file_path: 源文件路径
+            source_df: 可选的源数据DataFrame，避免重复读取
             
         Returns:
             bool: 是否需要增量更新
         """
         try:
-            # 读取源文件的最新数据
-            source_df = pd.read_csv(source_file_path, encoding='utf-8')
+            # 优化：使用传入的source_df，避免重复读取
+            if source_df is None:
+                source_df = pd.read_csv(source_file_path, encoding='utf-8')
             
             if source_df.empty:
                 return False
             
             # 确保日期列格式一致
             if 'date' in cached_df.columns:
-                cached_df['date'] = pd.to_datetime(cached_df['date'])
+                cached_latest = pd.to_datetime(cached_df['date']).max()
+            else:
+                cached_latest = pd.Timestamp.min
+                
             if '日期' in source_df.columns:
-                source_df['日期'] = pd.to_datetime(source_df['日期'])
-            
-            # 比较最新日期
-            cached_latest = cached_df['date'].max() if 'date' in cached_df.columns else pd.Timestamp.min
-            source_latest = source_df['日期'].max() if '日期' in source_df.columns else pd.Timestamp.min
+                source_latest = pd.to_datetime(source_df['日期']).max()
+            else:
+                source_latest = pd.Timestamp.min
             
             return source_latest > cached_latest
             
@@ -224,25 +234,30 @@ class VolatilityBatchProcessor:
             return False
     
     def _perform_incremental_update(self, etf_code: str, cached_df: pd.DataFrame,
-                                   threshold: Optional[str] = None) -> Optional[Dict]:
+                                   threshold: Optional[str] = None, 
+                                   source_df: Optional[pd.DataFrame] = None) -> Optional[Dict]:
         """
-        执行增量更新
+        执行增量更新（优化：避免重复读取文件）
         
         Args:
             etf_code: ETF代码
             cached_df: 缓存数据
             threshold: 门槛类型
+            source_df: 可选的源数据DataFrame，避免重复读取
             
         Returns:
             Dict: 更新后的结果或None
         """
         try:
-            # 读取新数据
-            data_result = self.etf_processor.data_reader.read_etf_data(etf_code)
-            if data_result is None:
-                return None
-            
-            new_df, metadata = data_result
+            # 优化：使用传入的source_df或读取新数据
+            if source_df is not None:
+                new_df = source_df
+                metadata = {'etf_code': etf_code, 'data_source': 'cached_source'}
+            else:
+                data_result = self.etf_processor.data_reader.read_etf_data(etf_code)
+                if data_result is None:
+                    return None
+                new_df, metadata = data_result
             
             # 执行增量更新计算
             from ..engines.historical_calculator import VolatilityHistoricalCalculator
@@ -300,20 +315,48 @@ class VolatilityBatchProcessor:
             latest_row = df.iloc[0]  # 最新数据在第一行
             volatility_values = {}
             
-            # 提取波动率指标
+            # 提取波动率指标（支持大小写字段名）
             volatility_columns = [col for col in df.columns if any(
-                keyword in col for keyword in ['Volatility_', 'Rolling_Vol_', 'Price_Range', 'Vol_']
+                keyword in col.lower() for keyword in ['vol_', 'rolling_vol_', 'price_range', 'vol_ratio_', 'vol_state', 'vol_level']
             )]
             
             for col in volatility_columns:
                 if col in latest_row and pd.notna(latest_row[col]):
-                    volatility_values[col] = float(latest_row[col])
+                    # 统一使用小写字段名作为内部标准
+                    standard_col = self._standardize_field_name(col)
+                    volatility_values[standard_col] = float(latest_row[col])
             
             return volatility_values
             
         except Exception as e:
             print(f"   ⚠️ 提取波动率值异常: {str(e)}")
             return {}
+    
+    def _standardize_field_name(self, field_name: str) -> str:
+        """
+        标准化字段名为小写格式（内部计算标准）
+        
+        Args:
+            field_name: 原始字段名
+            
+        Returns:
+            str: 标准化的小写字段名
+        """
+        # 统一转换为小写格式
+        field_mapping = {
+            'VOL_10': 'vol_10',
+            'VOL_20': 'vol_20', 
+            'VOL_30': 'vol_30',
+            'VOL_60': 'vol_60',
+            'ROLLING_VOL_10': 'rolling_vol_10',
+            'ROLLING_VOL_30': 'rolling_vol_30',
+            'PRICE_RANGE': 'price_range',
+            'VOL_RATIO_20_30': 'vol_ratio_20_30',
+            'VOL_STATE': 'vol_state',
+            'VOL_LEVEL': 'vol_level'
+        }
+        
+        return field_mapping.get(field_name, field_name.lower())
     
     def _save_to_cache(self, result: Dict, threshold: Optional[str] = None) -> bool:
         """
@@ -333,11 +376,12 @@ class VolatilityBatchProcessor:
             etf_code = result.get('etf_code')
             volatility_values = result.get('volatility_values', {})
             
-            # 创建简化的缓存数据（只保存必要信息）
+            # 创建简化的缓存数据（单值计算专用）
             cache_data = {
                 'etf_code': etf_code,
                 'calculation_date': result.get('calculation_date'),
-                'volatility_values': volatility_values
+                'volatility_values': volatility_values,
+                'cache_type': 'single_value'  # 标识缓存类型
             }
             
             cache_df = pd.DataFrame([cache_data])

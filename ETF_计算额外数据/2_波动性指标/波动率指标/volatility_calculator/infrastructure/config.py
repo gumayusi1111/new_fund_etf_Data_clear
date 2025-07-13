@@ -8,7 +8,7 @@
 """
 
 import os
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from dataclasses import dataclass, field
 
 
@@ -62,7 +62,7 @@ class VolatilityConfig:
     }
     
     # 默认波动率计算周期
-    DEFAULT_VOLATILITY_PERIODS = [10, 20, 30, 60]
+    DEFAULT_VOLATILITY_PERIODS = [10, 20, 30]
     
     def __init__(self, adj_type: str = "前复权", volatility_periods: Optional[List[int]] = None, 
                  enable_cache: bool = True, performance_mode: bool = True, 
@@ -165,3 +165,57 @@ class VolatilityConfig:
         """验证门槛参数的有效性"""
         valid_thresholds = ["3000万门槛", "5000万门槛"]
         return threshold in valid_thresholds
+    
+    def get_volatility_output_fields(self) -> List[str]:
+        """获取波动率输出字段列表（按第一大类标准 - 小写字段名）"""
+        fields = ['code', 'date']
+        
+        # 添加各周期波动率字段（小写）
+        for period in self.volatility_periods:
+            fields.append(f'vol_{period}')
+        
+        # 添加滚动波动率字段（小写）
+        fields.extend(['rolling_vol_10', 'rolling_vol_30'])
+        
+        # 添加其他指标字段（小写）
+        fields.extend([
+            'price_range',
+            'vol_ratio_20_30',
+            'vol_state',
+            'vol_level',
+            'calc_time'
+        ])
+        
+        return fields
+    
+    def get_cache_dir(self, threshold: Optional[str] = None) -> str:
+        """获取缓存目录路径"""
+        if threshold:
+            return os.path.join(self.volatility_script_dir, "cache", threshold)
+        return os.path.join(self.volatility_script_dir, "cache")
+    
+    def get_output_dir(self, threshold: Optional[str] = None) -> str:
+        """获取输出目录路径"""
+        if threshold:
+            return os.path.join(self.default_output_dir, threshold)
+        return self.default_output_dir
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典格式"""
+        return {
+            'adj_type': self.adj_type,
+            'volatility_periods': self.volatility_periods,
+            'annualized': self.annualized,
+            'trading_days_per_year': self.trading_days_per_year,
+            'min_data_points': self.min_data_points,
+            'enable_cache': self.enable_cache,
+            'performance_mode': self.performance_mode,
+            'data_path': self.data_path,
+            'default_output_dir': self.default_output_dir,
+            'output_fields': self.get_volatility_output_fields(),
+            'system_params': {
+                'name': self.system_params.name,
+                'sensitivity_level': self.system_params.sensitivity_level,
+                'description': self.system_params.description
+            }
+        }

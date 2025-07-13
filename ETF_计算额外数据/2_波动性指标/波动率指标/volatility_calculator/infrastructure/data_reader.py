@@ -173,7 +173,22 @@ class VolatilityDataReader:
                 return None
             
             # 检查必需字段（输入使用中文字段名）
-            required_columns = ['日期', '开盘价', '最高价', '最低价', '收盘价', '成交量']
+            required_columns = ['日期', '开盘价', '最高价', '最低价', '收盘价']
+            
+            # 处理成交量字段的变体
+            volume_variants = ['成交量', '成交量(手数)', '成交量（手数）']
+            volume_field = None
+            for variant in volume_variants:
+                if variant in df.columns:
+                    volume_field = variant
+                    break
+            
+            if volume_field:
+                # 将成交量字段重命名为标准名称
+                if volume_field != '成交量':
+                    df = df.rename(columns={volume_field: '成交量'})
+                required_columns.append('成交量')
+            
             missing_columns = [col for col in required_columns if col not in df.columns]
             
             if missing_columns:
@@ -213,8 +228,14 @@ class VolatilityDataReader:
             for col in price_columns:
                 if (df[col] <= 0).any():
                     if not self.config.performance_mode:
-                        print(f"⚠️ {etf_code}: 检测到异常价格数据")
+                        print(f"⚠️ {etf_code}: 检测到异常价格数据，正在清理...")
                     df = df[df[col] > 0]
+            
+            # 过滤后重新检查数据量
+            if len(df) < self.config.min_data_points:
+                if not self.config.performance_mode:
+                    print(f"❌ {etf_code}: 清理异常数据后有效数据不足 ({len(df)} < {self.config.min_data_points})")
+                return None
             
             if df.empty:
                 return None

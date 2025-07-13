@@ -88,7 +88,7 @@ class VolatilityCacheManager:
             }
             
             config_changed = cached_config != current_config
-            file_changed = abs(source_mtime - cached_mtime) > 1  # 1秒容差
+            file_changed = abs(source_mtime - cached_mtime) > 5  # 5秒容差，避免文件系统时间精度问题
             
             is_valid = not (config_changed or file_changed)
             
@@ -166,3 +166,113 @@ class VolatilityCacheManager:
             if not self.config.performance_mode:
                 print(f"❌ 缓存保存异常 {etf_code}: {str(e)}")
             return False
+    
+    def invalidate_cache(self, etf_code: str, threshold: Optional[str] = None) -> bool:
+        """使缓存失效"""
+        try:
+            cache_file = self.get_cache_file_path(etf_code, threshold)
+            meta_file = self.get_meta_file_path(etf_code, threshold)
+            
+            # 删除缓存文件
+            if os.path.exists(cache_file):
+                os.remove(cache_file)
+            
+            # 删除元数据文件
+            if os.path.exists(meta_file):
+                os.remove(meta_file)
+            
+            return True
+            
+        except Exception as e:
+            if not self.config.performance_mode:
+                print(f"❌ 缓存失效异常 {etf_code}: {str(e)}")
+            return False
+    
+    def get_cache_info(self, threshold: Optional[str] = None) -> Dict[str, Any]:
+        """获取缓存信息"""
+        try:
+            if threshold:
+                cache_dir = os.path.join(self.cache_base_dir, threshold)
+            else:
+                cache_dir = self.cache_base_dir
+            
+            if not os.path.exists(cache_dir):
+                return {'cached_files': 0, 'total_size_kb': 0}
+            
+            cached_files = []
+            total_size = 0
+            
+            for file in os.listdir(cache_dir):
+                if file.endswith('.csv'):
+                    file_path = os.path.join(cache_dir, file)
+                    file_size = os.path.getsize(file_path)
+                    total_size += file_size
+                    cached_files.append(file.replace('.csv', ''))
+            
+            return {
+                'cached_files': len(cached_files),
+                'total_size_kb': round(total_size / 1024, 2),
+                'etf_codes': cached_files[:10]  # 只返回前10个
+            }
+            
+        except Exception as e:
+            return {'error': f'获取缓存信息失败: {str(e)}'}
+    
+    def clear_cache(self, threshold: Optional[str] = None) -> int:
+        """清除缓存"""
+        try:
+            cleared_count = 0
+            
+            if threshold:
+                # 清除特定threshold的缓存
+                cache_dir = os.path.join(self.cache_base_dir, threshold)
+                if os.path.exists(cache_dir):
+                    for file in os.listdir(cache_dir):
+                        if file.endswith('.csv'):
+                            file_path = os.path.join(cache_dir, file)
+                            os.remove(file_path)
+                            cleared_count += 1
+                            
+                            # 删除对应的元数据
+                            etf_code = file.replace('.csv', '')
+                            meta_file = self.get_meta_file_path(etf_code, threshold)
+                            if os.path.exists(meta_file):
+                                os.remove(meta_file)
+            else:
+                # 清除所有缓存（包括所有threshold子目录）
+                if os.path.exists(self.cache_base_dir):
+                    # 清除根目录下的csv文件
+                    for file in os.listdir(self.cache_base_dir):
+                        if file.endswith('.csv'):
+                            file_path = os.path.join(self.cache_base_dir, file)
+                            os.remove(file_path)
+                            cleared_count += 1
+                            
+                            # 删除对应的元数据
+                            etf_code = file.replace('.csv', '')
+                            meta_file = self.get_meta_file_path(etf_code, None)
+                            if os.path.exists(meta_file):
+                                os.remove(meta_file)
+                    
+                    # 清除所有threshold子目录
+                    for item in os.listdir(self.cache_base_dir):
+                        item_path = os.path.join(self.cache_base_dir, item)
+                        if os.path.isdir(item_path) and item != "meta":
+                            for file in os.listdir(item_path):
+                                if file.endswith('.csv'):
+                                    file_path = os.path.join(item_path, file)
+                                    os.remove(file_path)
+                                    cleared_count += 1
+                                    
+                                    # 删除对应的元数据
+                                    etf_code = file.replace('.csv', '')
+                                    meta_file = self.get_meta_file_path(etf_code, item)
+                                    if os.path.exists(meta_file):
+                                        os.remove(meta_file)
+            
+            return cleared_count
+            
+        except Exception as e:
+            if not self.config.performance_mode:
+                print(f"❌ 清除缓存异常: {str(e)}")
+            return 0

@@ -26,13 +26,12 @@
 - **VOL_10**: 10日历史波动率
 - **VOL_20**: 20日历史波动率  
 - **VOL_30**: 30日历史波动率
-- **VOL_60**: 60日历史波动率
 - **ROLLING_VOL_10**: 10日滚动波动率
 - **ROLLING_VOL_30**: 30日滚动波动率
 - **PRICE_RANGE**: 价格振幅百分比
 
 ### 📊 **衍生指标**
-- **VOL_RATIO_20_60**: 短期/长期波动率比率
+- **VOL_RATIO_20_30**: 短期/中期波动率比率
 - **VOL_STATE**: 波动率状态 (HIGH/MEDIUM/NORMAL/LOW)
 - **VOL_LEVEL**: 波动率水平 (EXTREME_HIGH/HIGH/MEDIUM/LOW)
 
@@ -50,7 +49,7 @@
 滚动波动率 = 滑动窗口计算收益率标准差
 
 # 波动率比率
-VOL_RATIO_20_60 = VOL_20 / VOL_60
+VOL_RATIO_20_30 = VOL_20 / VOL_30
 
 # 波动率状态判断
 if vol_ratio > 1.5: VOL_STATE = "HIGH"
@@ -126,7 +125,7 @@ python volatility_main.py --test                   # 功能测试
 ## 🎮 参数设置
 
 ### 默认参数配置
-- **波动率周期**: [10, 20, 30, 60]日
+- **波动率周期**: [10, 20, 30]日
 - **年化计算**: 启用（基于252个交易日）
 - **滚动窗口**: 10日、30日
 - **数值精度**: 8位小数
@@ -236,8 +235,8 @@ pip install pandas numpy
 
 **CSV输出格式** (统一英文字段):
 ```csv
-code,date,VOL_10,VOL_20,VOL_30,VOL_60,ROLLING_VOL_10,ROLLING_VOL_30,PRICE_RANGE,VOL_RATIO_20_60,VOL_STATE,VOL_LEVEL,calc_time
-159001,2025-07-11,0.12345678,0.11234567,0.10987654,0.09876543,0.12876543,0.11543210,2.34567890,1.12345678,MEDIUM,MEDIUM,2025-07-11 10:30:00
+code,date,VOL_10,VOL_20,VOL_30,ROLLING_VOL_10,ROLLING_VOL_30,PRICE_RANGE,VOL_RATIO_20_30,VOL_STATE,VOL_LEVEL,calc_time
+159001,2025-07-11,0.12345678,0.11234567,0.10987654,0.12876543,0.11543210,2.34567890,1.12345678,MEDIUM,MEDIUM,2025-07-11 10:30:00
 ```
 
 ### 📋 **字段说明**
@@ -246,7 +245,7 @@ code,date,VOL_10,VOL_20,VOL_30,VOL_60,ROLLING_VOL_10,ROLLING_VOL_30,PRICE_RANGE,
 - `VOL_XX`: XX日历史波动率
 - `ROLLING_VOL_XX`: XX日滚动波动率
 - `PRICE_RANGE`: 价格振幅百分比
-- `VOL_RATIO_20_60`: 短期/长期波动率比率
+- `VOL_RATIO_20_30`: 短期/中期波动率比率
 - `VOL_STATE`: 波动率状态（HIGH/MEDIUM/NORMAL/LOW）
 - `VOL_LEVEL`: 波动率水平（EXTREME_HIGH/HIGH/MEDIUM/LOW）
 - `calc_time`: 计算时间戳

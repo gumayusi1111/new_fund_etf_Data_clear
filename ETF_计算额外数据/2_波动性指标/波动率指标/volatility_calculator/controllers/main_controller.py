@@ -56,16 +56,16 @@ class VolatilityMainController:
         self.enable_cache = enable_cache
         self.performance_mode = performance_mode
         
-        # 初始化核心组件
-        self.data_reader = VolatilityDataReader(self.config)
-        self.volatility_engine = VolatilityEngine(self.config)
-        self.historical_calculator = VolatilityHistoricalCalculator(self.config)
-        self.result_processor = VolatilityResultProcessor(self.config)
-        
         # 初始化缓存管理器
         self.cache_manager = None
         if enable_cache:
             self.cache_manager = VolatilityCacheManager(self.config)
+        
+        # 初始化核心组件
+        self.data_reader = VolatilityDataReader(self.config)
+        self.volatility_engine = VolatilityEngine(self.config)
+        self.historical_calculator = VolatilityHistoricalCalculator(self.config, self.cache_manager)
+        self.result_processor = VolatilityResultProcessor(self.config)
         
         # 初始化处理器
         self.etf_processor = VolatilityETFProcessor(
@@ -231,9 +231,9 @@ class VolatilityMainController:
             
             print(f"📁 {threshold} 有效ETF文件数量: {len(etf_files_dict)}")
             
-            # 批量计算历史波动率
+            # 批量计算历史波动率（支持缓存）
             results = self.historical_calculator.batch_calculate_historical_volatility(
-                etf_files_dict, list(etf_files_dict.keys())
+                etf_files_dict, list(etf_files_dict.keys()), threshold
             )
             
             if results:
@@ -297,8 +297,8 @@ class VolatilityMainController:
                         result['historical_analysis'] = {
                             'total_history_days': len(historical_df),
                             'valid_vol_days': historical_df[f'VOL_{max(self.config.volatility_periods)}'].notna().sum(),
-                            'earliest_date': historical_df['date'].min(),
-                            'latest_date': historical_df['date'].max(),
+                            'earliest_date': historical_df['date'].min() if 'date' in historical_df.columns else None,
+                            'latest_date': historical_df['date'].max() if 'date' in historical_df.columns else None,
                             'historical_trend_summary': self._analyze_historical_trend(historical_df)
                         }
                         
@@ -317,8 +317,8 @@ class VolatilityMainController:
             if len(recent_data) < 10:
                 return {'analysis': '数据不足，无法进行趋势分析'}
             
-            # 使用英文字段名
-            ratio_col = 'VOL_RATIO_20_60'
+            # 使用英文字段名（大写）
+            ratio_col = 'VOL_RATIO_20_30'
             
             if ratio_col in recent_data.columns:
                 ratio_values = recent_data[ratio_col].dropna()

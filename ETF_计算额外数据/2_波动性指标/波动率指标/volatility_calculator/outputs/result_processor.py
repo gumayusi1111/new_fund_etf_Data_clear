@@ -51,33 +51,38 @@ class VolatilityResultProcessor:
             print(f"\n{i}. {etf_code}")
             print("-" * 40)
             
-            # 显示价格振幅
-            price_range = volatility_values.get('Price_Range')
+            # 显示价格振幅（按第一大类标准使用小写字段名）
+            price_range = volatility_values.get('price_range')
             if price_range is not None:
                 print(f"   💥 价格振幅: {price_range:.4f}%")
             
-            # 显示历史波动率
+            # 显示历史波动率（按第一大类标准）
             for period in self.config.volatility_periods:
-                vol_key = f'Volatility_{period}'
+                vol_key = f'vol_{period}'
                 vol_value = volatility_values.get(vol_key)
                 if vol_value is not None:
                     unit = "(年化)" if self.config.annualized else "(日)"
                     print(f"   📈 {vol_key}: {vol_value:.6f} {unit}")
             
-            # 显示滚动波动率
+            # 显示滚动波动率（按第一大类标准）
             for period in [10, 30]:
-                rolling_key = f'Rolling_Vol_{period}'
+                rolling_key = f'rolling_vol_{period}'
                 rolling_value = volatility_values.get(rolling_key)
                 if rolling_value is not None:
                     unit = "(年化)" if self.config.annualized else "(日)"
                     print(f"   🔄 {rolling_key}: {rolling_value:.6f} {unit}")
             
-            # 显示波动率状态
-            vol_state = volatility_values.get('Vol_State')
+            # 显示波动率比率
+            vol_ratio = volatility_values.get('vol_ratio_20_30')
+            if vol_ratio is not None:
+                print(f"   📊 波动率比率: {vol_ratio:.4f}")
+            
+            # 显示波动率状态（按第一大类标准）
+            vol_state = volatility_values.get('vol_state')
             if vol_state:
                 print(f"   🎯 波动率状态: {vol_state}")
             
-            vol_level = volatility_values.get('Vol_Level')
+            vol_level = volatility_values.get('vol_level')
             if vol_level:
                 print(f"   📊 波动率水平: {vol_level}")
             

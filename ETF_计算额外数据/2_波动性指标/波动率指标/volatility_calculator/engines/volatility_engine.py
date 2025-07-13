@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-波动率计算引擎
-============
+波动率计算引擎 - 模仿布林带完善实现
+============================
 
-实现多种波动率指标的计算，包括：
-1. 历史波动率 (Historical Volatility)
-2. 价格振幅 (Price Range)
-3. 滚动波动率 (Rolling Volatility)
+高效的波动率指标计算核心引擎
+支持向量化计算和多种波动率衍生指标
+完全模仿布林带系统的稳健架构
 """
 
 import pandas as pd
@@ -17,131 +16,118 @@ from ..infrastructure.config import VolatilityConfig
 
 
 class VolatilityEngine:
-    """波动率计算引擎"""
+    """波动率计算引擎 - 模仿布林带完善实现"""
     
     def __init__(self, config: VolatilityConfig):
-        """
-        初始化波动率计算引擎
-        
-        Args:
-            config: 波动率配置对象
-        """
+        """初始化波动率计算引擎（模仿布林带架构）"""
         self.config = config
-        
-        print("📊 波动率计算引擎初始化完成")
-        print(f"   🎯 支持周期: {self.config.volatility_periods}")
-        print(f"   📊 年化计算: {'启用' if self.config.annualized else '禁用'}")
-        print(f"   📈 算法标准: 严格按照标准波动率公式计算")
+        self.volatility_periods = config.volatility_periods
+        self.annualized = config.annualized
+        self.trading_days_per_year = config.trading_days_per_year
+        self.precision = getattr(config, 'precision', 8)
     
-    def calculate_returns(self, prices: pd.Series) -> pd.Series:
-        """
-        计算收益率序列
-        
-        Args:
-            prices: 价格序列
-            
-        Returns:
-            pd.Series: 收益率序列
-        """
-        # 计算对数收益率
-        returns = np.log(prices / prices.shift(1))
-        return returns.dropna()
+    def _calculate_returns(self, prices: pd.Series) -> pd.Series:
+        """计算对数收益率（模仿布林带的稳健数据处理）"""
+        return np.log(prices / prices.shift(1)).replace([np.inf, -np.inf], np.nan)
     
-    def calculate_simple_returns(self, prices: pd.Series) -> pd.Series:
-        """
-        计算简单收益率序列
+    def _calculate_rolling_volatility(self, prices: pd.Series, period: int) -> pd.Series:
+        """计算滚动波动率（完全模仿布林带的滚动标准差计算）"""
+        returns = self._calculate_returns(prices)
+        # 标准的滚动窗口计算，但允许部分数据
+        volatility = returns.rolling(window=period, min_periods=period//2).std()
         
-        Args:
-            prices: 价格序列
+        # 年化处理（如果启用）
+        if self.annualized:
+            volatility = volatility * np.sqrt(self.trading_days_per_year)
             
-        Returns:
-            pd.Series: 简单收益率序列
-        """
-        # 计算简单收益率
-        returns = (prices / prices.shift(1) - 1)
-        return returns.dropna()
-    
-    def calculate_historical_volatility(self, prices: pd.Series, period: int) -> pd.Series:
-        """
-        计算历史波动率
-        
-        📊 公式: 
-        - 收益率 = ln(P_t / P_{t-1})
-        - 波动率 = std(收益率, period)
-        - 年化波动率 = 波动率 × √252 (如果启用年化)
-        
-        Args:
-            prices: 价格序列
-            period: 计算周期
-            
-        Returns:
-            pd.Series: 历史波动率序列
-        """
-        if len(prices) < period + 1:
-            print(f"⚠️ 历史波动率计算: 数据长度({len(prices)})小于所需周期({period+1})")
-            return pd.Series([np.nan] * len(prices), index=prices.index)
-        
-        # 计算收益率
-        returns = self.calculate_returns(prices)
-        
-        # 计算滚动标准差
-        volatility = returns.rolling(window=period, min_periods=period).std()
-        
-        # 年化处理
-        if self.config.annualized:
-            volatility = volatility * np.sqrt(self.config.trading_days_per_year)
-        
-        # 调整索引以匹配原始价格序列
-        volatility = volatility.reindex(prices.index)
-        
         return volatility
     
-    def calculate_price_range(self, high: pd.Series, low: pd.Series, close: pd.Series) -> pd.Series:
-        """
-        计算价格振幅
-        
-        📊 公式: 价格振幅 = (最高价 - 最低价) / 昨收盘价 × 100%
-        
-        Args:
-            high: 最高价序列
-            low: 最低价序列
-            close: 收盘价序列
-            
-        Returns:
-            pd.Series: 价格振幅序列（百分比）
-        """
-        # 获取前一日收盘价
+    def _calculate_price_range(self, high: pd.Series, low: pd.Series, close: pd.Series) -> pd.Series:
+        """计算价格振幅（模仿布林带的向量化计算）"""
         prev_close = close.shift(1)
-        
-        # 计算价格振幅百分比
-        price_range = ((high - low) / prev_close * 100).fillna(0)
-        
+        price_range = ((high - low) / prev_close * 100).replace([np.inf, -np.inf], np.nan)
         return price_range
     
-    def calculate_rolling_volatility(self, prices: pd.Series, period: int, 
-                                   method: str = 'std') -> pd.Series:
-        """
-        计算滚动波动率
+    def _calculate_volatility_ratios(self, vol_20: Optional[float], vol_30: Optional[float]) -> Tuple[Optional[float], Optional[str]]:
+        """计算波动率比率和状态（模仿布林带的衍生指标计算）"""
+        if None in [vol_20, vol_30] or vol_30 == 0:
+            return None, None
         
-        Args:
-            prices: 价格序列
-            period: 滚动窗口大小
-            method: 计算方法 ('std' 或 'parkinson')
+        try:
+            vol_ratio = vol_20 / vol_30
             
-        Returns:
-            pd.Series: 滚动波动率序列
-        """
-        if method == 'std':
-            return self.calculate_historical_volatility(prices, period)
-        elif method == 'parkinson':
-            # Parkinson方法需要高低价数据，这里简化使用标准方法
-            return self.calculate_historical_volatility(prices, period)
-        else:
-            raise ValueError(f"不支持的计算方法: {method}")
+            # 波动率状态判断
+            if vol_ratio > 1.5:
+                vol_state = "HIGH"
+            elif vol_ratio > 1.2:
+                vol_state = "MEDIUM"
+            elif vol_ratio > 0.8:
+                vol_state = "NORMAL"
+            else:
+                vol_state = "LOW"
+                
+            return vol_ratio, vol_state
+        except (ZeroDivisionError, Exception):
+            return None, None
+    
+    def _calculate_volatility_level(self, vol_10: Optional[float]) -> Optional[str]:
+        """计算波动率水平（模仿布林带的分级方法）"""
+        if vol_10 is None:
+            return None
+            
+        try:
+            if self.annualized:
+                if vol_10 > 0.4:  # 40%
+                    return "EXTREME_HIGH"
+                elif vol_10 > 0.25:  # 25%
+                    return "HIGH" 
+                elif vol_10 > 0.15:  # 15%
+                    return "MEDIUM"
+                else:
+                    return "LOW"
+            else:
+                if vol_10 > 0.025:  # 2.5%
+                    return "EXTREME_HIGH"
+                elif vol_10 > 0.016:  # 1.6%
+                    return "HIGH"
+                elif vol_10 > 0.009:  # 0.9%
+                    return "MEDIUM"
+                else:
+                    return "LOW"
+        except Exception:
+            return None
+    
+    def _round_value(self, value: Optional[float]) -> Optional[float]:
+        """按配置精度四舍五入（完全模仿布林带）"""
+        if value is None:
+            return None
+        return round(value, self.precision)
+    
+    def _get_empty_result(self) -> Dict[str, Optional[float]]:
+        """获取空结果（模仿布林带）"""
+        result = {}
+        
+        # 历史波动率字段
+        for period in self.volatility_periods:
+            result[f'vol_{period}'] = None
+            
+        # 滚动波动率字段
+        for period in [10, 30]:
+            result[f'rolling_vol_{period}'] = None
+            
+        # 其他指标
+        result.update({
+            'price_range': None,
+            'vol_ratio_20_30': None,
+            'vol_state': None,
+            'vol_level': None
+        })
+        
+        return result
     
     def calculate_volatility_indicators(self, df: pd.DataFrame) -> Dict[str, Optional[float]]:
         """
-        计算所有波动率指标
+        计算波动率指标 - 完全模仿布林带的计算方法
         
         Args:
             df: 包含价格数据的DataFrame
@@ -149,218 +135,251 @@ class VolatilityEngine:
         Returns:
             Dict[str, Optional[float]]: 波动率指标结果字典
         """
-        print("📊 开始波动率指标计算...")
-        volatility_results = {}
+        if df.empty or '收盘价' not in df.columns:
+            return self._get_empty_result()
         
-        # 数据验证
-        if df.empty:
-            print("❌ 输入数据为空")
-            return volatility_results
+        # 检查数据量是否足够（模仿布林带的数据验证）
+        max_period = max(self.volatility_periods) if self.volatility_periods else 60
+        if len(df) < max_period:
+            return self._get_empty_result()
         
-        required_columns = ['最高价', '最低价', '收盘价']
-        missing_columns = [col for col in required_columns if col not in df.columns]
-        
-        if missing_columns:
-            print(f"❌ 缺少必需字段: {missing_columns}")
-            return volatility_results
-        
-        # 获取价格数据
-        high_prices = df['最高价'].copy()
-        low_prices = df['最低价'].copy()
-        close_prices = df['收盘价'].copy()
-        
-        # 数据完整性检查
-        if close_prices.isnull().any():
-            print(f"⚠️ 检测到{close_prices.isnull().sum()}个缺失收盘价值")
-            close_prices = close_prices.ffill()
-        
-        # 1. 计算价格振幅 - 按第一大类标准使用英文字段名
         try:
-            price_range = self.calculate_price_range(high_prices, low_prices, close_prices)
-            if not price_range.empty:
-                latest_range = price_range.iloc[-1] if len(price_range) > 0 else None  # 最新数据在最后
-                volatility_results['PRICE_RANGE'] = round(float(latest_range), 8) if latest_range is not None else None
-                
-                if latest_range is not None:
-                    print(f"  ✅ PRICE_RANGE: {latest_range:.4f}%")
-                else:
-                    print(f"  ❌ PRICE_RANGE: 计算失败")
+            # 获取价格数据
+            close_prices = df['收盘价'].copy()
+            high_prices = df.get('最高价', close_prices)
+            low_prices = df.get('最低价', close_prices)
+            
+            # 计算价格振幅（添加安全检查）
+            price_range = self._calculate_price_range(high_prices, low_prices, close_prices)
+            if len(price_range) > 0 and not price_range.empty:
+                latest_value = price_range.iloc[-1]
+                latest_price_range = float(latest_value) if not pd.isna(latest_value) else None
             else:
-                volatility_results['PRICE_RANGE'] = None
-                print(f"  ❌ PRICE_RANGE: 无有效数据")
-                
-        except Exception as e:
-            print(f"  ❌ PRICE_RANGE 计算异常: {str(e)}")
-            volatility_results['PRICE_RANGE'] = None
-        
-        # 2. 计算各周期历史波动率
-        available_periods = [p for p in self.config.volatility_periods if p <= len(df)]
-        
-        if len(available_periods) == 0:
-            min_period = min(self.config.volatility_periods) if self.config.volatility_periods else 10
-            print(f"❌ 数据不足: 数据行数({len(df)})小于最小周期({min_period})")
-            return volatility_results
-        
-        if len(available_periods) < len(self.config.volatility_periods):
-            unavailable_periods = [p for p in self.config.volatility_periods if p > len(df)]
-            print(f"⚠️ 部分周期将跳过: {unavailable_periods} (数据不足)")
-        
-        print(f"📊 数据概况: {len(df)}行历史数据，支持周期: {available_periods}")
-        
-        for period in available_periods:
-            try:
-                # 计算历史波动率
-                historical_vol = self.calculate_historical_volatility(close_prices, period)
-                
-                # 获取最新的有效值
-                valid_vol_values = historical_vol.dropna()
-                
-                if not valid_vol_values.empty:
-                    latest_vol = valid_vol_values.iloc[-1]  # 最新数据在最后
-                    latest_vol = round(float(latest_vol), 8)
-                    volatility_results[f'VOL_{period}'] = latest_vol  # 按第一大类标准使用英文字段名
-                    
-                    valid_count = len(valid_vol_values)
-                    efficiency = ((len(close_prices) - period) / len(close_prices)) * 100
-                    
-                    unit = "(年化)" if self.config.annualized else "(日)"
-                    print(f"  ✅ VOL_{period}: {valid_count} 个有效值 → 最新: {latest_vol:.6f} {unit} (效率: {efficiency:.1f}%)")
-                else:
-                    print(f"  ❌ VOL_{period}: 无有效数据")
-                    volatility_results[f'VOL_{period}'] = None
-                    
-            except Exception as e:
-                print(f"  ❌ Volatility_{period} 计算异常: {str(e)}")
-                volatility_results[f'Volatility_{period}'] = None
-        
-        # 3. 计算滚动波动率（使用不同周期）
-        rolling_periods = [10, 30]  # 固定使用10日和30日滚动
-        
-        for period in rolling_periods:
-            if period <= len(df):
-                try:
-                    rolling_vol = self.calculate_rolling_volatility(close_prices, period)
-                    
-                    valid_rolling_values = rolling_vol.dropna()
-                    
-                    if not valid_rolling_values.empty:
-                        latest_rolling = valid_rolling_values.iloc[-1]  # 最新数据在最后
-                        latest_rolling = round(float(latest_rolling), 8)
-                        volatility_results[f'ROLLING_VOL_{period}'] = latest_rolling  # 按第一大类标准使用英文字段名
-                        
-                        unit = "(年化)" if self.config.annualized else "(日)"
-                        print(f"  ✅ ROLLING_VOL_{period}: {latest_rolling:.6f} {unit}")
+                latest_price_range = None
+            
+            # 计算各周期历史波动率
+            vol_results = {}
+            for period in self.volatility_periods:
+                if period <= len(df):
+                    volatility = self._calculate_rolling_volatility(close_prices, period)
+                    if len(volatility) > 0 and not volatility.empty:
+                        latest_value = volatility.iloc[-1]
+                        latest_vol = float(latest_value) if not pd.isna(latest_value) else None
                     else:
-                        volatility_results[f'ROLLING_VOL_{period}'] = None
-                        print(f"  ❌ ROLLING_VOL_{period}: 无有效数据")
-                        
-                except Exception as e:
-                    print(f"  ❌ Rolling_Vol_{period} 计算异常: {str(e)}")
-                    volatility_results[f'Rolling_Vol_{period}'] = None
-        
-        # 4. 计算波动率比率和状态指标
-        try:
-            self._calculate_volatility_ratios(volatility_results)
+                        latest_vol = None
+                    vol_results[f'vol_{period}'] = self._round_value(latest_vol)
+                else:
+                    vol_results[f'vol_{period}'] = None
+            
+            # 计算滚动波动率（添加安全检查）
+            for period in [10, 30]:
+                if period <= len(df):
+                    rolling_vol = self._calculate_rolling_volatility(close_prices, period)
+                    if len(rolling_vol) > 0 and not rolling_vol.empty:
+                        latest_value = rolling_vol.iloc[-1]
+                        latest_rolling = float(latest_value) if not pd.isna(latest_value) else None
+                    else:
+                        latest_rolling = None
+                    vol_results[f'rolling_vol_{period}'] = self._round_value(latest_rolling)
+            
+            # 计算衍生指标
+            vol_20 = vol_results.get('vol_20')
+            vol_30 = vol_results.get('vol_30')
+            vol_10 = vol_results.get('vol_10')
+            
+            vol_ratio, vol_state = self._calculate_volatility_ratios(vol_20, vol_30)
+            vol_level = self._calculate_volatility_level(vol_10)
+            
+            # 组合所有结果
+            result = vol_results.copy()
+            result.update({
+                'price_range': self._round_value(latest_price_range),
+                'vol_ratio_20_30': self._round_value(vol_ratio),
+                'vol_state': vol_state,
+                'vol_level': vol_level
+            })
+            
+            return result
+            
         except Exception as e:
-            print(f"  ⚠️ 波动率比率计算异常: {str(e)}")
-        
-        # 计算成功率统计
-        total_indicators = len(self.config.volatility_periods) + 2 + len(rolling_periods) + 1  # 历史波动率 + 滚动波动率 + 价格振幅
-        successful_calcs = sum(1 for v in volatility_results.values() if v is not None)
-        success_rate = (successful_calcs / total_indicators) * 100
-        
-        print(f"📊 波动率计算完成: {successful_calcs}/{total_indicators} 成功 (成功率: {success_rate:.1f}%)")
-        
-        return volatility_results
+            return self._get_empty_result()
     
-    def _calculate_volatility_ratios(self, volatility_results: Dict[str, Optional[float]]) -> None:
+    def calculate_historical_volatility_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        计算波动率比率和衍生指标
+        计算历史波动率数据（向量化） - 修复时序逻辑错误
         
         Args:
-            volatility_results: 波动率结果字典（会被修改）
-        """
-        try:
-            # 计算短期/长期波动率比率 - 按第一大类标准使用英文字段名
-            vol_20 = volatility_results.get('VOL_20')
-            vol_60 = volatility_results.get('VOL_60')
-            
-            if vol_20 is not None and vol_60 is not None and vol_60 != 0:
-                vol_ratio = vol_20 / vol_60
-                volatility_results['VOL_RATIO_20_60'] = round(vol_ratio, 8)  # 保持8位小数精度
-                
-                # 波动率状态判断
-                if vol_ratio > 1.5:
-                    vol_state = "HIGH"
-                elif vol_ratio > 1.2:
-                    vol_state = "MEDIUM"
-                elif vol_ratio > 0.8:
-                    vol_state = "NORMAL"
-                else:
-                    vol_state = "LOW"
-                
-                volatility_results['VOL_STATE'] = vol_state
-                print(f"  ✅ VOL_RATIO_20_60: {vol_ratio:.4f} → {vol_state}")
-            
-            # 计算波动率分位数（需要历史数据，这里简化处理）
-            vol_10 = volatility_results.get('VOL_10')
-            if vol_10 is not None:
-                # 简化的波动率水平判断
-                if self.config.annualized:
-                    if vol_10 > 0.4:  # 40%
-                        vol_level = "EXTREME_HIGH"
-                    elif vol_10 > 0.25:  # 25%
-                        vol_level = "HIGH"
-                    elif vol_10 > 0.15:  # 15%
-                        vol_level = "MEDIUM"
-                    else:
-                        vol_level = "LOW"
-                else:
-                    if vol_10 > 0.025:  # 2.5%
-                        vol_level = "EXTREME_HIGH"
-                    elif vol_10 > 0.016:  # 1.6%
-                        vol_level = "HIGH"
-                    elif vol_10 > 0.009:  # 0.9%
-                        vol_level = "MEDIUM"
-                    else:
-                        vol_level = "LOW"
-                
-                volatility_results['VOL_LEVEL'] = vol_level
-                print(f"  ✅ VOL_LEVEL: {vol_level}")
-                
-        except Exception as e:
-            print(f"  ⚠️ 波动率比率计算警告: {str(e)}")
-    
-    def verify_volatility_calculation(self, prices: pd.Series, period: int, 
-                                    expected_vol: float) -> Tuple[bool, float]:
-        """
-        验证波动率计算的正确性
-        
-        Args:
-            prices: 价格序列
-            period: 波动率周期
-            expected_vol: 期望的波动率值
+            df: ETF数据DataFrame
             
         Returns:
-            Tuple[bool, float]: (是否正确, 实际计算值)
+            pd.DataFrame: 包含历史波动率数据的DataFrame
         """
-        if len(prices) < period + 1:
-            return False, np.nan
+        if df.empty or '收盘价' not in df.columns:
+            return pd.DataFrame()
         
-        # 独立算法：手工计算波动率
-        returns = np.log(prices / prices.shift(1)).dropna()
+        max_period = max(self.volatility_periods) if self.volatility_periods else 60
+        if len(df) < max_period:
+            return pd.DataFrame()
         
-        if len(returns) < period:
-            return False, np.nan
+        try:
+            # 先确保数据按日期正序排列（最早在前）用于计算
+            calc_df = df.copy()
+            if '日期' in calc_df.columns:
+                calc_df = calc_df.sort_values('日期', ascending=True).reset_index(drop=True)
+            
+            close_prices = calc_df['收盘价']
+            high_prices = calc_df.get('最高价', close_prices)
+            low_prices = calc_df.get('最低价', close_prices)
+            
+            # 向量化计算价格振幅（使用正序数据）
+            calc_df['price_range'] = self._calculate_price_range(high_prices, low_prices, close_prices)
+            
+            # 向量化计算各周期波动率（使用正序数据）
+            for period in self.volatility_periods:
+                if period <= len(calc_df):
+                    calc_df[f'vol_{period}'] = self._calculate_rolling_volatility(close_prices, period)
+                else:
+                    calc_df[f'vol_{period}'] = np.nan
+            
+            # 向量化计算滚动波动率（使用正序数据）
+            for period in [10, 30]:
+                if period <= len(calc_df):
+                    calc_df[f'rolling_vol_{period}'] = self._calculate_rolling_volatility(close_prices, period)
+                else:
+                    calc_df[f'rolling_vol_{period}'] = np.nan
+            
+            # 向量化计算衍生指标
+            self._calculate_vectorized_indicators(calc_df)
+            
+            # 计算完成后，保持日期降序排列用于输出（最新在前）
+            # 重要：必须保持计算时的数据对应关系，不能简单排序
+            result_df = calc_df.sort_values('日期', ascending=False).reset_index(drop=True)
+            
+            # 四舍五入到指定精度（模仿布林带的精度处理）
+            vol_columns = [f'vol_{p}' for p in self.volatility_periods] + \
+                         [f'rolling_vol_{p}' for p in [10, 30]] + \
+                         ['price_range', 'vol_ratio_20_30']
+            
+            for col in vol_columns:
+                if col in result_df.columns:
+                    result_df[col] = result_df[col].round(self.precision)
+            
+            return result_df
+            
+        except Exception as e:
+            return pd.DataFrame()
+    
+    def _calculate_vectorized_indicators(self, df: pd.DataFrame) -> None:
+        """向量化计算波动率衍生指标（模仿布林带的向量化方法）"""
+        try:
+            # 计算波动率比率（向量化）
+            if 'vol_20' in df.columns and 'vol_30' in df.columns:
+                vol_20 = df['vol_20']
+                vol_30 = df['vol_30']
+                
+                # 避免除零（模仿布林带的安全除法）
+                vol_ratio = np.where(vol_30 != 0, vol_20 / vol_30, np.nan)
+                df['vol_ratio_20_30'] = vol_ratio
+                
+                # 向量化波动率状态判断
+                vol_state = np.select(
+                    [vol_ratio > 1.5, vol_ratio > 1.2, vol_ratio > 0.8],
+                    ['HIGH', 'MEDIUM', 'NORMAL'],
+                    default='LOW'
+                )
+                df['vol_state'] = vol_state
+            
+            # 计算波动率水平（向量化）
+            if 'vol_10' in df.columns:
+                vol_10 = df['vol_10']
+                
+                if self.annualized:
+                    vol_level = np.select(
+                        [vol_10 > 0.4, vol_10 > 0.25, vol_10 > 0.15],
+                        ['EXTREME_HIGH', 'HIGH', 'MEDIUM'],
+                        default='LOW'
+                    )
+                else:
+                    vol_level = np.select(
+                        [vol_10 > 0.025, vol_10 > 0.016, vol_10 > 0.009],
+                        ['EXTREME_HIGH', 'HIGH', 'MEDIUM'],
+                        default='LOW'
+                    )
+                
+                df['vol_level'] = vol_level
+                
+        except Exception as e:
+            pass  # 静默处理异常，确保主流程不受影响
+    
+    def verify_calculation(self, df: pd.DataFrame, calculated_results: Dict) -> Tuple[bool, Dict]:
+        """
+        验证计算结果的准确性 - 完全模仿布林带的验证方法
         
-        recent_returns = returns.tail(period)
-        independent_vol = recent_returns.std()
+        Args:
+            df: 原始数据
+            calculated_results: 计算结果
+            
+        Returns:
+            Tuple[bool, Dict]: (是否正确, 验证信息)
+        """
+        try:
+            max_period = max(self.volatility_periods) if self.volatility_periods else 60
+            if len(df) < max_period:
+                return False, {'error': '数据不足'}
+            
+            # 独立计算验证（模仿布林带的独立验证算法）
+            close_prices = df['收盘价'].copy()
+            
+            # 验证最新的波动率计算
+            for period in self.volatility_periods:
+                if period <= len(df):
+                    # 独立计算
+                    returns = self._calculate_returns(close_prices)
+                    if len(returns) >= period:
+                        recent_returns = returns.tail(period)
+                        expected_vol = recent_returns.std()
+                        
+                        if self.annualized:
+                            expected_vol = expected_vol * np.sqrt(self.trading_days_per_year)
+                        
+                        calculated_vol = calculated_results.get(f'vol_{period}')
+                        
+                        if calculated_vol is None:
+                            return False, {'error': f'vol_{period} 计算失败'}
+                        
+                        # 允许微小的浮点误差（模仿布林带的容错机制）
+                        tolerance = 1e-6
+                        vol_diff = abs(calculated_vol - expected_vol)
+                        
+                        if vol_diff > tolerance:
+                            return False, {
+                                'error': f'vol_{period} 计算不准确',
+                                'expected': round(expected_vol, 8),
+                                'calculated': calculated_vol,
+                                'difference': vol_diff
+                            }
+            
+            return True, {
+                'volatility_verified': True,
+                'tolerance_used': 1e-6,
+                'periods_checked': self.volatility_periods
+            }
+            
+        except Exception as e:
+            return False, {'error': f'验证过程异常: {str(e)}'}
+    
+    def get_calculation_summary(self, vol_results: Dict[str, Optional[float]]) -> Dict:
+        """获取计算汇总信息（模仿布林带的汇总方法）"""
+        total_indicators = len(vol_results)
+        successful_calcs = sum(1 for v in vol_results.values() if v is not None)
         
-        if self.config.annualized:
-            independent_vol = independent_vol * np.sqrt(self.config.trading_days_per_year)
+        success_rate = (successful_calcs / total_indicators) * 100 if total_indicators > 0 else 0
         
-        # 精度比较
-        tolerance = 1e-6
-        is_correct = abs(independent_vol - expected_vol) < tolerance
-        
-        return is_correct, round(independent_vol, 6)
+        return {
+            'total_indicators': total_indicators,
+            'successful_calculations': successful_calcs,
+            'success_rate': round(success_rate, 2),
+            'volatility_periods': self.volatility_periods,
+            'annualized': self.annualized,
+            'precision': self.precision
+        }
