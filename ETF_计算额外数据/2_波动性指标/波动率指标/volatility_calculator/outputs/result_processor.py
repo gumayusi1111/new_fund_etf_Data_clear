@@ -129,7 +129,7 @@ class VolatilityResultProcessor:
             # 确保输出目录存在
             os.makedirs(os.path.dirname(output_file), exist_ok=True)
             
-            df.to_csv(output_file, index=False, encoding='utf-8')
+            df.to_csv(output_file, index=False, encoding='utf-8-sig', float_format='%.8f')
             
             print(f"✅ 结果已保存: {output_file}")
             print(f"   📊 记录数: {len(df)}")
@@ -185,7 +185,7 @@ class VolatilityResultProcessor:
                     }
                     
                     df = pd.DataFrame([row_data])
-                    df.to_csv(output_file, index=False, encoding='utf-8')
+                    df.to_csv(output_file, index=False, encoding='utf-8-sig', float_format='%.8f')
                     
                     # 统计信息
                     file_size = os.path.getsize(output_file)

@@ -116,7 +116,7 @@ class BBCSVHandler:
                             cached_data = pd.read_csv(cache_file)
                             
                             output_file = os.path.join(output_dir, f"{clean_etf_code}.csv")
-                            cached_data.to_csv(output_file, index=False, encoding='utf-8')
+                            cached_data.to_csv(output_file, index=False, encoding='utf-8-sig', float_format='%.8f')
                             saved_count += 1
                             
                     except Exception:
@@ -172,7 +172,7 @@ class BBCSVHandler:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             summary_file = os.path.join(output_dir, f"bb_processing_summary_{timestamp}.csv")
             
-            df.to_csv(summary_file, index=False, encoding='utf-8')
+            df.to_csv(summary_file, index=False, encoding='utf-8-sig', float_format='%.8f')
             
             return True
             
@@ -207,7 +207,7 @@ class BBCSVHandler:
             validation_result['file_exists'] = True
             
             # 读取CSV文件
-            df = pd.read_csv(csv_file_path, encoding='utf-8')
+            df = pd.read_csv(csv_file_path, encoding='utf-8-sig')
             
             validation_result['row_count'] = len(df)
             validation_result['column_count'] = len(df.columns)
@@ -277,7 +277,7 @@ class BBCSVHandler:
             
             for csv_file in csv_files:
                 if os.path.exists(csv_file):
-                    df = pd.read_csv(csv_file, encoding='utf-8')
+                    df = pd.read_csv(csv_file, encoding='utf-8-sig')
                     if not df.empty:
                         all_dataframes.append(df)
             
@@ -299,7 +299,7 @@ class BBCSVHandler:
             
             # 保存合并结果
             self.utils.ensure_directory_exists(os.path.dirname(output_file))
-            merged_df.to_csv(output_file, index=False, encoding='utf-8')
+            merged_df.to_csv(output_file, index=False, encoding='utf-8-sig', float_format='%.8f')
             
             return True
             
@@ -333,7 +333,7 @@ class BBCSVHandler:
             stats['file_size_mb'] = self.utils.get_file_size_mb(csv_file_path)
             
             # 读取数据
-            df = pd.read_csv(csv_file_path, encoding='utf-8')
+            df = pd.read_csv(csv_file_path, encoding='utf-8-sig')
             
             stats['row_count'] = len(df)
             stats['column_count'] = len(df.columns)

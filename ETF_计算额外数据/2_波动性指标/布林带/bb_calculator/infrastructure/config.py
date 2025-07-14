@@ -5,19 +5,11 @@
 ================
 
 布林带系统的配置管理，统一格式规范
-<<<<<<< HEAD
-参照趋势类指标的配置模式
-=======
->>>>>>> feature/volatility-indicators
 """
 
 import os
 from typing import List, Optional, Dict
-<<<<<<< HEAD
-from dataclasses import dataclass
-=======
 from dataclasses import dataclass, field
->>>>>>> feature/volatility-indicators
 
 
 @dataclass
@@ -25,14 +17,10 @@ class BBSystemParams:
     """布林带系统参数配置"""
     name: str = 'BollingerBands'
     sensitivity_level: str = 'STANDARD'
-<<<<<<< HEAD
-    period: int = 20                    # 标准周期
-=======
     period: int = 20                    # 默认周期
->>>>>>> feature/volatility-indicators
     std_dev_multiplier: float = 2.0     # 标准差倍数
     min_periods: int = 20               # 最小计算周期
-    precision: int = 8                  # 计算精度
+    precision: int = 8                  # 计算精度 (统一8位精度)
     description: str = '布林带指标，通过动态轨道识别超买超卖和波动性变化'
 
 
@@ -46,7 +34,6 @@ class BBConfig:
         "除权": "0_ETF日K(除权)"
     }
     
-<<<<<<< HEAD
     # 布林带参数配置 - 基于中国ETF市场优化的科学参数
     BB_PARAMS_SETS = {
         '短周期': {
@@ -68,16 +55,6 @@ class BBConfig:
     # 默认使用标准参数(20,2) - 经学术验证最适合中国ETF市场
     DEFAULT_BB_PARAMS = BB_PARAMS_SETS['标准']
     
-=======
-    # 布林带参数配置
-    DEFAULT_BB_PARAMS = {
-        'period': 20,           # 中轨周期
-        'std_multiplier': 2.0,  # 标准差倍数
-        'std_multiplier_upper': 2.0,  # 上轨标准差倍数
-        'std_multiplier_lower': 2.0   # 下轨标准差倍数
-    }
-    
->>>>>>> feature/volatility-indicators
     def __init__(self, adj_type: str = "前复权", bb_params: Optional[Dict] = None):
         """
         初始化布林带配置
@@ -144,8 +121,8 @@ class BBConfig:
     def get_bb_output_fields(self) -> List[str]:
         """获取布林带输出字段列表（统一英文格式）"""
         return [
-            'code',           # ETF代码
             'date',           # 日期
+            'code',           # ETF代码
             'bb_middle',      # 中轨(20日SMA)
             'bb_upper',       # 上轨
             'bb_lower',       # 下轨
@@ -172,7 +149,6 @@ class BBConfig:
         """获取配置显示信息"""
         period = self.get_bb_period()
         std_mult = self.get_bb_std_multiplier()
-<<<<<<< HEAD
         param_set_name = self.get_current_param_set_name()
         return f"布林带配置 ({self.adj_type}): BB({period},{std_mult}) [{param_set_name}]"
     
@@ -241,32 +217,6 @@ class BBConfig:
                     os.path.join(self.default_output_dir, threshold, param_set)
                 ])
         
-=======
-        return f"布林带配置 ({self.adj_type}): BB({period},{std_mult})"
-        
-    def get_cache_file_path(self, threshold: str, etf_code: str) -> str:
-        """获取缓存文件路径"""
-        clean_etf_code = etf_code.replace('.SH', '').replace('.SZ', '')
-        return os.path.join(self.cache_dir, threshold, f"{clean_etf_code}.csv")
-        
-    def get_output_file_path(self, threshold: str, etf_code: str) -> str:
-        """获取输出文件路径"""
-        clean_etf_code = etf_code.replace('.SH', '').replace('.SZ', '')
-        return os.path.join(self.default_output_dir, threshold, f"{clean_etf_code}.csv")
-        
-    def ensure_directories_exist(self) -> None:
-        """确保必要目录存在"""
-        directories = [
-            self.default_output_dir,
-            self.cache_dir,
-            os.path.join(self.cache_dir, "meta"),
-            os.path.join(self.cache_dir, "3000万门槛"),
-            os.path.join(self.cache_dir, "5000万门槛"),
-            os.path.join(self.default_output_dir, "3000万门槛"),
-            os.path.join(self.default_output_dir, "5000万门槛")
-        ]
-        
->>>>>>> feature/volatility-indicators
         for directory in directories:
             os.makedirs(directory, exist_ok=True)
             
