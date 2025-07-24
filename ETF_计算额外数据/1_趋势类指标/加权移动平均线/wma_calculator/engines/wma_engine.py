@@ -271,4 +271,4 @@ class WMAEngine:
         tolerance = 1e-6
         is_correct = abs(independent_wma - expected_wma) < tolerance
         
-        return is_correct, round(independent_wma, 6) 
+        return is_correct, round(independent_wma, 8) 

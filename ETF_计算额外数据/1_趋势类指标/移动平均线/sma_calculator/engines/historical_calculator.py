@@ -70,7 +70,7 @@ class HistoricalCalculator:
             col_name = f'MA{period}'
             if len(prices) >= period:
                 sma_series = prices.rolling(window=period, min_periods=period).mean()
-                sma_columns[col_name] = sma_series.round(6)
+                sma_columns[col_name] = sma_series.round(8)
             else:
                 sma_columns[col_name] = pd.Series([np.nan] * len(prices), index=prices.index)
         
@@ -89,7 +89,7 @@ class HistoricalCalculator:
         for short_col, long_col, diff_col in diff_pairs:
             if short_col in df.columns and long_col in df.columns:
                 diff_series = df[short_col] - df[long_col]
-                diff_columns[diff_col] = diff_series.round(6)
+                diff_columns[diff_col] = diff_series.round(8)
         
         # 计算相对差值百分比（安全除法）
         if 'MA5' in df.columns and 'MA20' in df.columns:
@@ -99,7 +99,7 @@ class HistoricalCalculator:
             ma20_safe = ma20.replace(0, np.nan)  # 将0替换为NaN
             ma5_ma20_pct = np.where(
                 (ma5.notna()) & (ma20_safe.notna()),
-                ((ma5 - ma20_safe) / ma20_safe * 100).round(4),
+                ((ma5 - ma20_safe) / ma20_safe * 100).round(8),
                 np.nan
             )
             diff_columns['MA5_MA20_DIFF_PCT'] = pd.Series(ma5_ma20_pct, index=df.index)
@@ -153,10 +153,10 @@ class HistoricalCalculator:
             price_change_pct = round(float((prices.iloc[0] - last_price) / last_price * 100), 2)
         
         return {
-            'max_price': round(float(prices.max()), 6),
-            'min_price': round(float(prices.min()), 6),
-            'avg_price': round(float(prices.mean()), 6),
-            'price_volatility': round(float(prices.std()), 6),
+            'max_price': round(float(prices.max()), 8),
+            'min_price': round(float(prices.min()), 8),
+            'avg_price': round(float(prices.mean()), 8),
+            'price_volatility': round(float(prices.std()), 8),
             'price_change_pct': price_change_pct
         }
     
@@ -170,9 +170,9 @@ class HistoricalCalculator:
                 sma_data = df[col].dropna()
                 if not sma_data.empty:
                     sma_stats[col] = {
-                        'latest': round(float(sma_data.iloc[0]), 6),
-                        'average': round(float(sma_data.mean()), 6),
-                        'volatility': round(float(sma_data.std()), 6)
+                        'latest': round(float(sma_data.iloc[0]), 8),
+                        'average': round(float(sma_data.mean()), 8),
+                        'volatility': round(float(sma_data.std()), 8)
                     }
         
         return sma_stats
@@ -189,8 +189,8 @@ class HistoricalCalculator:
                 avg_diff = float(diff_data.mean())
                 
                 trend_analysis['ma5_ma20_trend'] = {
-                    'latest_diff': round(latest_diff, 6),
-                    'average_diff': round(avg_diff, 6),
+                    'latest_diff': round(latest_diff, 8),
+                    'average_diff': round(avg_diff, 8),
                     'trend_direction': 'bullish' if latest_diff > 0 else 'bearish' if latest_diff < 0 else 'neutral',
                     'trend_strength': 'strong' if abs(latest_diff) > abs(avg_diff) * 1.5 else 'moderate'
                 }
@@ -216,7 +216,7 @@ class HistoricalCalculator:
             display_df = df.head(max_rows) if len(df) > max_rows else df
             
             # 转换为CSV字符串
-            csv_string = display_df.to_csv(index=False, encoding='utf-8', float_format='%.6f')
+            csv_string = display_df.to_csv(index=False, encoding='utf-8', float_format='%.8f')
             
             return csv_string
             

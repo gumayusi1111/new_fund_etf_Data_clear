@@ -142,7 +142,7 @@ class WMABatchProcessor:
                 if col.startswith('WMA'):
                     value = latest_row[col]
                     if pd.notna(value):
-                        wma_values[col] = round(float(value), 6)
+                        wma_values[col] = round(float(value), 8)
                     else:
                         wma_values[col] = None
             
@@ -152,8 +152,8 @@ class WMABatchProcessor:
                 'wma_values': wma_values,
                 'latest_price': {
                     'date': str(latest_row.get('date', '')),
-                    'close': round(float(latest_row.get('收盘价', 0)), 6),
-                    'change_pct': round(float(latest_row.get('涨幅%', 0)), 4) if '涨幅%' in latest_row else 0.0
+                    'close': round(float(latest_row.get('收盘价', 0)), 8),
+                    'change_pct': round(float(latest_row.get('涨幅%', 0)), 8) if '涨幅%' in latest_row else 0.0
                 },
                 'date_range': {
                     'start_date': str(cached_df.iloc[-1].get('date', '')),
@@ -243,7 +243,7 @@ class WMABatchProcessor:
             # 避免除以零错误
             valid_mask = wma20_series != 0
             pct_series = pd.Series([0.0] * len(df_with_wma), index=df_with_wma.index)
-            pct_series[valid_mask] = (diff_series[valid_mask] / wma20_series[valid_mask] * 100).round(4)
+            pct_series[valid_mask] = (diff_series[valid_mask] / wma20_series[valid_mask] * 100).round(8)
             df_with_wma['WMA_DIFF_5_20_PCT'] = pct_series
         
         return df_with_wma

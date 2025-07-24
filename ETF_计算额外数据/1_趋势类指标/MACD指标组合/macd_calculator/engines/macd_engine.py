@@ -120,11 +120,11 @@ class MACDEngine:
             result_df = pd.DataFrame({
                 'date': temp_df['Date'].dt.strftime('%Y-%m-%d'),  # 日期格式化
                 'code': df['代码'],  # ETF代码
-                'ema_fast': temp_df['EMA_Fast'].round(6),  # 快线EMA
-                'ema_slow': temp_df['EMA_Slow'].round(6),  # 慢线EMA
-                'dif': temp_df['DIF'].round(6),  # ema_fast - ema_slow
-                'dea': temp_df['DEA'].round(6),  # DIF的信号线EMA
-                'macd_bar': temp_df['MACD'].round(6),  # (dif - dea) * 2
+                'ema_fast': temp_df['EMA_Fast'].round(8),  # 快线EMA
+                'ema_slow': temp_df['EMA_Slow'].round(8),  # 慢线EMA
+                'dif': temp_df['DIF'].round(8),  # ema_fast - ema_slow
+                'dea': temp_df['DEA'].round(8),  # DIF的信号线EMA
+                'macd_bar': temp_df['MACD'].round(8),  # (dif - dea) * 2
             })
             
             # 添加计算时间戳 - 与原系统保持一致
