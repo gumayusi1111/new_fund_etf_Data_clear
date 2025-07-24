@@ -107,7 +107,8 @@ class BBUtils:
         
         try:
             with open(screening_file, 'r', encoding='utf-8') as f:
-                etf_list = [line.strip() for line in f.readlines() if line.strip()]
+                etf_list = [line.strip() for line in f.readlines() 
+                           if line.strip() and not line.strip().startswith('#')]
             return etf_list
         except Exception:
             return []

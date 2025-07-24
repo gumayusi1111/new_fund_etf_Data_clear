@@ -72,6 +72,104 @@ class BBCSVHandler:
         except Exception:
             return None
     
+    def format_bb_result_to_dataframe(self, etf_code: str, etf_data: pd.DataFrame, 
+                                     bb_results: Dict) -> pd.DataFrame:
+        """
+        将布林带结果格式化为DataFrame
+        
+        Args:
+            etf_code: ETF代码
+            etf_data: 原始ETF数据
+            bb_results: 布林带计算结果
+            
+        Returns:
+            pd.DataFrame: 格式化后的DataFrame
+        """
+        try:
+            if not bb_results or etf_data.empty:
+                return pd.DataFrame()
+            
+            # 创建结果DataFrame
+            result_df = etf_data.copy()
+            
+            # 添加布林带指标字段（统一使用小写字段名）
+            for field, values in bb_results.items():
+                if values is not None:
+                    # 统一字段名为小写格式
+                    standardized_field = field.lower()
+                    result_df[standardized_field] = values
+            
+            # 清理ETF代码
+            clean_etf_code = self.utils.format_etf_code(etf_code)
+            result_df['code'] = clean_etf_code
+            
+            # 确保日期格式
+            if '日期' in result_df.columns:
+                result_df['date'] = pd.to_datetime(result_df['日期']).dt.strftime('%Y-%m-%d')
+            
+            # 选择输出字段（按第一大类标准）
+            output_fields = self.config.get_bb_output_fields()
+            available_fields = [field for field in output_fields if field in result_df.columns]
+            
+            if available_fields:
+                result_df = result_df[available_fields]
+            
+            return result_df
+            
+        except Exception as e:
+            return pd.DataFrame()
+    
+    def format_bb_full_history_to_dataframe(self, etf_code: str, etf_data: pd.DataFrame, 
+                                           bb_results_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        将布林带完整历史结果格式化为DataFrame
+        
+        Args:
+            etf_code: ETF代码
+            etf_data: 原始ETF数据
+            bb_results_df: 布林带计算结果DataFrame
+            
+        Returns:
+            pd.DataFrame: 格式化后的DataFrame
+        """
+        try:
+            if bb_results_df.empty or etf_data.empty:
+                return pd.DataFrame()
+            
+            # 清理ETF代码
+            clean_etf_code = self.utils.format_etf_code(etf_code)
+            
+            # 合并日期信息
+            result_df = bb_results_df.copy()
+            
+            # 如果bb_results_df没有日期列，从etf_data中获取
+            if '日期' not in result_df.columns and '日期' in etf_data.columns:
+                # 确保两个DataFrame长度匹配
+                etf_dates = etf_data['日期'].tail(len(result_df))
+                result_df['日期'] = etf_dates.values
+            
+            # 添加ETF代码
+            result_df['code'] = clean_etf_code
+            
+            # 确保日期格式
+            if '日期' in result_df.columns:
+                result_df['date'] = pd.to_datetime(result_df['日期']).dt.strftime('%Y-%m-%d')
+            
+            # 选择输出字段（按第一大类标准）
+            output_fields = self.config.get_bb_output_fields()
+            available_fields = [field for field in output_fields if field in result_df.columns]
+            
+            if available_fields:
+                result_df = result_df[available_fields]
+            
+            # 移除NaN行
+            result_df = result_df.dropna(subset=['bb_middle', 'bb_upper', 'bb_lower'])
+            
+            return result_df
+            
+        except Exception as e:
+            return pd.DataFrame()
+    
     def create_batch_csv(self, results_dict: Dict[str, Any], threshold: str, 
                         param_set: str = None, output_filename: str = None) -> bool:
         """
@@ -87,11 +185,6 @@ class BBCSVHandler:
             bool: 创建是否成功
         """
         try:
-            successful_results = results_dict.get('results', {})
-            
-            if not successful_results:
-                return False
-            
             # 确定参数集
             if not param_set:
                 param_set = self.config.get_current_param_set_name()
@@ -103,29 +196,88 @@ class BBCSVHandler:
             # 为每个ETF生成独立的CSV文件
             saved_count = 0
             
-            for etf_code, result in successful_results.items():
-                if result.get('success'):
-                    try:
-                        # 直接从缓存中读取参数集特定的数据
-                        clean_etf_code = self.utils.format_etf_code(etf_code)
-                        cache_file = self.config.get_cache_file_path(threshold, clean_etf_code, param_set)
+            # 获取ETF列表
+            etf_list = results_dict.get('etf_list', [])
+            
+            for etf_code in etf_list:
+                try:
+                    # 从缓存中读取参数集特定的数据
+                    clean_etf_code = self.utils.format_etf_code(etf_code)
+                    cache_file = self.config.get_cache_file_path(threshold, clean_etf_code, param_set)
+                    
+                    if os.path.exists(cache_file):
+                        # 直接复制缓存中的数据到输出目录
+                        import pandas as pd
+                        cached_data = pd.read_csv(cache_file)
                         
-                        if os.path.exists(cache_file):
-                            # 直接复制缓存中的数据到输出目录
-                            import pandas as pd
-                            cached_data = pd.read_csv(cache_file)
-                            
-                            output_file = os.path.join(output_dir, f"{clean_etf_code}.csv")
-                            cached_data.to_csv(output_file, index=False, encoding='utf-8-sig', float_format='%.8f')
-                            saved_count += 1
-                            
-                    except Exception:
-                        continue
+                        output_file = os.path.join(output_dir, f"{clean_etf_code}.csv")
+                        cached_data.to_csv(output_file, index=False, encoding='utf-8-sig', float_format='%.8f')
+                        saved_count += 1
+                        
+                except Exception:
+                    continue
             
             return saved_count > 0
             
         except Exception:
             return False
+    
+    def save_bb_data_to_csv(self, etf_code: str, data: pd.DataFrame, output_path: str) -> Dict[str, Any]:
+        """
+        保存布林带数据到CSV文件
+        
+        Args:
+            etf_code: ETF代码
+            data: 数据DataFrame
+            output_path: 输出路径
+            
+        Returns:
+            Dict[str, Any]: 保存结果
+        """
+        result = {
+            'success': False,
+            'output_path': output_path,
+            'error': None
+        }
+        
+        try:
+            if data.empty:
+                result['error'] = '数据为空'
+                return result
+            
+            # 确保目录存在
+            output_dir = os.path.dirname(output_path)
+            self.utils.ensure_directory_exists(output_dir)
+            
+            # 保存数据
+            data.to_csv(output_path, index=False, encoding='utf-8-sig', float_format='%.8f')
+            
+            result['success'] = True
+            return result
+            
+        except Exception as e:
+            result['error'] = str(e)
+            return result
+    
+    def load_bb_data_from_csv(self, csv_path: str) -> Optional[pd.DataFrame]:
+        """
+        从CSV文件加载布林带数据
+        
+        Args:
+            csv_path: CSV文件路径
+            
+        Returns:
+            Optional[pd.DataFrame]: 加载的数据，失败返回None
+        """
+        try:
+            if not os.path.exists(csv_path):
+                return None
+            
+            data = pd.read_csv(csv_path, encoding='utf-8-sig')
+            return data if not data.empty else None
+            
+        except Exception:
+            return None
     
     def create_summary_csv(self, batch_results: Dict[str, Any]) -> bool:
         """

@@ -342,21 +342,8 @@ class VolatilityBatchProcessor:
         Returns:
             str: 标准化的小写字段名
         """
-        # 统一转换为小写格式
-        field_mapping = {
-            'VOL_10': 'vol_10',
-            'VOL_20': 'vol_20', 
-            'VOL_30': 'vol_30',
-            'VOL_60': 'vol_60',
-            'ROLLING_VOL_10': 'rolling_vol_10',
-            'ROLLING_VOL_30': 'rolling_vol_30',
-            'PRICE_RANGE': 'price_range',
-            'VOL_RATIO_20_30': 'vol_ratio_20_30',
-            'VOL_STATE': 'vol_state',
-            'VOL_LEVEL': 'vol_level'
-        }
-        
-        return field_mapping.get(field_name, field_name.lower())
+        # 已经统一使用小写格式，无需映射转换
+        return field_name.lower()
     
     def _save_to_cache(self, result: Dict, threshold: Optional[str] = None) -> bool:
         """
@@ -448,7 +435,7 @@ class VolatilityBatchProcessor:
                 
                 # 保存文件
                 save_df = pd.DataFrame([save_data])
-                save_df.to_csv(output_file, index=False, encoding='utf-8')
+                save_df.to_csv(output_file, index=False, encoding='utf-8', float_format='%.8f')
                 
                 # 统计信息
                 file_size = os.path.getsize(output_file)

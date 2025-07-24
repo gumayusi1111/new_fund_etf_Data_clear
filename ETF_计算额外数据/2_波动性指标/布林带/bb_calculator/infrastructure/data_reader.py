@@ -5,31 +5,20 @@
 ==============
 
 负责ETF数据的读取、预处理和验证
-<<<<<<< HEAD
 参照趋势类指标的数据读取模式
-=======
->>>>>>> feature/volatility-indicators
 """
 
 import pandas as pd
 import os
-<<<<<<< HEAD
-from typing import Optional, Dict, List
-=======
 from typing import Optional, Dict, List, Tuple
 from .config import BBConfig
->>>>>>> feature/volatility-indicators
 from .utils import BBUtils
 
 
 class BBDataReader:
     """布林带数据读取器"""
     
-<<<<<<< HEAD
-    def __init__(self, config):
-=======
     def __init__(self, config: BBConfig):
->>>>>>> feature/volatility-indicators
         """初始化数据读取器"""
         self.config = config
         self.utils = BBUtils()
@@ -101,8 +90,8 @@ class BBDataReader:
             # 处理价格列
             processed_df = self._process_price_columns(processed_df)
             
-            # 按日期排序
-            processed_df = processed_df.sort_values('日期').reset_index(drop=True)
+            # 按日期排序（降序，最新日期在最前面）
+            processed_df = processed_df.sort_values('日期', ascending=False).reset_index(drop=True)
             
             # 去除无效数据
             processed_df = self._clean_invalid_data(processed_df)
@@ -150,7 +139,6 @@ class BBDataReader:
     def _process_date_column(self, df: pd.DataFrame) -> pd.DataFrame:
         """处理日期列"""
         try:
-<<<<<<< HEAD
             # 检查日期格式并转换
             if '日期' in df.columns:
                 # 如果日期是YYYYMMDD格式，先转换为字符串再处理
@@ -160,10 +148,9 @@ class BBDataReader:
                 else:
                     # 尝试多种日期格式
                     df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
-=======
-            # 转换日期格式
-            df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
->>>>>>> feature/volatility-indicators
+            else:
+                # 转换日期格式
+                df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
             
             # 移除无效日期
             df = df.dropna(subset=['日期'])
@@ -200,10 +187,6 @@ class BBDataReader:
         # 移除重复日期（保留最后一个）
         df = df.drop_duplicates(subset=['日期'], keep='last')
         
-<<<<<<< HEAD
-        return df
-    
-=======
         # 移除异常价格数据（例如价格变化超过50%的异常数据）
         df = self._filter_price_outliers(df)
         
@@ -240,7 +223,6 @@ class BBDataReader:
         except Exception:
             return df
     
->>>>>>> feature/volatility-indicators
     def _validate_data(self, df: pd.DataFrame) -> bool:
         """验证数据质量"""
         validation_result = self.utils.validate_etf_data_structure(df)
@@ -263,9 +245,6 @@ class BBDataReader:
         if price_range['min'] <= 0 or price_range['max'] > 10000:  # ETF价格通常不会超过1万
             return False
         
-<<<<<<< HEAD
-        return True
-=======
         return True
     
     def read_multiple_etf_data(self, etf_codes: List[str]) -> Dict[str, Optional[pd.DataFrame]]:
@@ -378,4 +357,3 @@ class BBDataReader:
                 pass
         
         return freshness_info
->>>>>>> feature/volatility-indicators

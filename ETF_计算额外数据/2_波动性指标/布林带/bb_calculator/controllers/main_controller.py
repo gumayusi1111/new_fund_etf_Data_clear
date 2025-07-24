@@ -22,9 +22,9 @@ from ..outputs.csv_handler import BBCSVHandler
 class BBMainController:
     """布林带主控制器"""
     
-    def __init__(self, adj_type: str = "前复权"):
+    def __init__(self, config: BBConfig = None):
         """初始化主控制器"""
-        self.config = BBConfig(adj_type=adj_type)
+        self.config = config or BBConfig()
         self.data_reader = BBDataReader(self.config)
         self.cache_manager = BBCacheManager(self.config)
         self.file_manager = BBFileManager(self.config)
@@ -35,8 +35,31 @@ class BBMainController:
         # 确保目录存在
         self.config.ensure_directories_exist()
     
+    def update_config(self, new_config: BBConfig):
+        """更新配置并重新初始化相关组件"""
+        self.config = new_config
+        self.data_reader = BBDataReader(self.config)
+        self.cache_manager = BBCacheManager(self.config)
+        self.file_manager = BBFileManager(self.config)
+        self.bb_engine = BollingerBandsEngine(self.config)
+        self.csv_handler = BBCSVHandler(self.config)
+        
+        # 确保目录存在
+        self.config.ensure_directories_exist()
+    
     def get_system_status(self) -> Dict[str, Any]:
         """获取系统状态"""
+        # 获取筛选后的ETF列表
+        available_etfs = []
+        try:
+            # 获取各门槛的筛选ETF列表
+            etf_3000 = self.utils.read_etf_screening_list('3000万门槛')
+            etf_5000 = self.utils.read_etf_screening_list('5000万门槛')
+            # 合并去重
+            available_etfs = list(set(etf_3000 + etf_5000))
+        except Exception:
+            available_etfs = []
+        
         status = {
             'system_name': 'BollingerBands Calculator',
             'version': '1.0.0',
@@ -53,11 +76,25 @@ class BBMainController:
                 'output_dir': self.config.default_output_dir,
                 'data_dir_exists': self.config.validate_data_path()
             },
+            'available_etfs': available_etfs,
             'cache_stats': self.cache_manager.get_cache_statistics(),
             'output_stats': self.file_manager.get_all_statistics()
         }
         
         return status
+    
+    def calculate_single_etf(self, etf_code: str, threshold: str) -> Dict[str, Any]:
+        """
+        计算单个ETF的布林带指标（统一接口）
+        
+        Args:
+            etf_code: ETF代码
+            threshold: 门槛类型
+            
+        Returns:
+            Dict[str, Any]: 计算结果
+        """
+        return self.process_single_etf(etf_code, threshold, use_cache=True)
     
     def process_single_etf(self, etf_code: str, threshold: Optional[str] = None, 
                           use_cache: bool = True) -> Dict[str, Any]:
@@ -100,16 +137,16 @@ class BBMainController:
                     result['bb_results'] = cached_data.to_dict('records')
                     return result
             
-            # 计算布林带指标
-            bb_results = self.bb_engine.calculate_bollinger_bands(etf_data)
+            # 计算布林带完整历史数据
+            bb_results_df = self.bb_engine.calculate_full_history(etf_data)
             
-            if not bb_results or all(v is None for v in bb_results.values()):
+            if bb_results_df is None or bb_results_df.empty:
                 result['error'] = f'布林带计算失败: {etf_code}'
                 return result
             
             # 格式化输出数据
-            formatted_df = self.csv_handler.format_bb_result_to_dataframe(
-                etf_code, etf_data, bb_results
+            formatted_df = self.csv_handler.format_bb_full_history_to_dataframe(
+                etf_code, etf_data, bb_results_df
             )
             
             if formatted_df.empty:
@@ -132,7 +169,7 @@ class BBMainController:
                     return result
             
             result['success'] = True
-            result['bb_results'] = bb_results
+            result['bb_results'] = formatted_df.to_dict('records')
             result['processing_time'] = time.time() - start_time
             
         except Exception as e:
@@ -197,6 +234,22 @@ class BBMainController:
             
             # 获取缓存统计
             result['cache_statistics'] = self.cache_manager.get_cache_statistics()
+            
+            # 生成统一标准的meta文件
+            threshold_statistics = {}
+            for threshold in thresholds:
+                if threshold in result['threshold_details']:
+                    threshold_details = result['threshold_details'][threshold]
+                    threshold_statistics[threshold] = {
+                        'successful_etfs': threshold_details.get('successful_etfs', 0),
+                        'failed_etfs': threshold_details.get('failed_etfs', 0)
+                    }
+                    # 为每个门槛生成meta文件
+                    self.cache_manager.create_threshold_meta(threshold, threshold_statistics[threshold])
+            
+            # 生成系统级meta文件
+            if threshold_statistics:
+                self.cache_manager.create_system_meta(threshold_statistics)
             
             result['success'] = len(result['errors']) == 0
             

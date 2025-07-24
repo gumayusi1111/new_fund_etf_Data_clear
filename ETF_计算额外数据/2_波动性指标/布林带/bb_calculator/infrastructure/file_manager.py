@@ -76,7 +76,7 @@ class BBFileManager:
             self.utils.ensure_directory_exists(output_dir)
             
             # 保存数据
-            data.to_csv(output_file, index=False, encoding='utf-8')
+            data.to_csv(output_file, index=False, encoding='utf-8', float_format='%.8f')
             
             # 获取文件信息
             result['file_size_mb'] = self.utils.get_file_size_mb(output_file) or 0

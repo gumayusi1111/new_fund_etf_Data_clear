@@ -243,6 +243,21 @@ class VolatilityMainController:
                 )
                 all_stats[threshold] = save_stats
                 
+                # 生成门槛级别的meta文件
+                successful_etfs = len(results)  # results is Dict[str, DataFrame]
+                failed_etfs = len(etf_files_dict) - successful_etfs
+                
+                threshold_result = {
+                    'successful_etfs': successful_etfs,
+                    'failed_etfs': failed_etfs,
+                    'etf_list': list(results.keys())
+                }
+                
+                # 调用cache_manager创建门槛meta文件
+                if hasattr(self, 'cache_manager') and self.cache_manager:
+                    self.cache_manager.create_threshold_meta(threshold, threshold_result)
+                    print(f"📄 {threshold}: meta文件已创建")
+                
                 print(f"✅ {threshold}: 历史数据计算和保存完成")
             else:
                 print(f"❌ {threshold}: 历史数据计算失败")
@@ -250,6 +265,22 @@ class VolatilityMainController:
         
         # 计算总处理ETF数量
         total_etfs = sum(len(stats.get('etf_codes', [])) for stats in all_stats.values() if stats)
+        
+        # 创建系统级meta文件 - 新标准v2.0
+        if hasattr(self, 'cache_manager') and self.cache_manager:
+            # 准备所有门槛的统计数据
+            thresholds_stats = {}
+            for threshold in thresholds:
+                if threshold in all_stats and all_stats[threshold]:
+                    stats = all_stats[threshold]
+                    thresholds_stats[threshold] = {
+                        'successful_etfs': len(stats.get('etf_codes', [])),
+                        'failed_etfs': 0,  # 从统计中获取失败数量
+                        'total_files': len(stats.get('etf_codes', []))
+                    }
+            
+            self.cache_manager.create_system_meta(thresholds_stats)
+            print("📄 系统级meta文件已创建")
         
         return {
             'processing_statistics': all_stats,
@@ -296,7 +327,7 @@ class VolatilityMainController:
                         # 添加历史数据到结果
                         result['historical_analysis'] = {
                             'total_history_days': len(historical_df),
-                            'valid_vol_days': historical_df[f'VOL_{max(self.config.volatility_periods)}'].notna().sum(),
+                            'valid_vol_days': historical_df[f'vol_{max(self.config.volatility_periods)}'].notna().sum(),
                             'earliest_date': historical_df['date'].min() if 'date' in historical_df.columns else None,
                             'latest_date': historical_df['date'].max() if 'date' in historical_df.columns else None,
                             'historical_trend_summary': self._analyze_historical_trend(historical_df)
@@ -317,8 +348,8 @@ class VolatilityMainController:
             if len(recent_data) < 10:
                 return {'analysis': '数据不足，无法进行趋势分析'}
             
-            # 使用英文字段名（大写）
-            ratio_col = 'VOL_RATIO_20_30'
+            # 使用英文字段名（小写）
+            ratio_col = 'vol_ratio_20_30'
             
             if ratio_col in recent_data.columns:
                 ratio_values = recent_data[ratio_col].dropna()

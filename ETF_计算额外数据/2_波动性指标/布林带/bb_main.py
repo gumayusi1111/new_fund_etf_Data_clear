@@ -22,6 +22,25 @@ from bb_calculator.infrastructure.config import BBConfig
 
 def main():
     """多参数集批量计算主函数"""
+    
+    # 检查是否是状态查询
+    if len(sys.argv) > 1 and sys.argv[1] == '--status':
+        config = BBConfig()
+        controller = BBMainController()
+        status = controller.get_system_status()
+        
+        print("📊 布林带指标计算器 - 基于波动率指标标准")
+        print("📈 支持多参数集(短周期、标准)，智能缓存")
+        print("🗂️ 参数分层目录结构，兼容MACD模式")
+        print("=" * 60)
+        print(f"📊 系统状态信息:")
+        print(f"   🔧 系统版本: {status['version']}")
+        print(f"   📁 数据路径: {status['config']['adj_type']}")
+        print(f"   📊 可用ETF: {len(status.get('available_etfs', []))}个")
+        print(f"   🗂️ 缓存状态: Ready")
+        print(f"   🎯 参数集: {', '.join(config.get_available_param_sets())}")
+        return
+    
     print("=" * 60)
     print("🚀 布林带多参数集批量计算系统启动")
     print("=" * 60)
@@ -63,7 +82,7 @@ def main():
             print(f"\n   📈 计算 {threshold}...")
             
             # 执行批量计算
-            result = controller.calculate_screening_results([threshold])
+            result = controller.calculate_and_save_screening_results([threshold])
             param_results[threshold] = result
             
             if result.get("success"):

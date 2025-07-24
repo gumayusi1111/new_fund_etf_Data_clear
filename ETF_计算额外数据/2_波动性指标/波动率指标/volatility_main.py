@@ -12,12 +12,12 @@
 5. 结果处理完善 - CSV导出、统计分析、趋势分析
 
 支持的波动率指标：
-- VOL_10, VOL_20, VOL_30: 各周期历史波动率
-- ROLLING_VOL_10, ROLLING_VOL_30: 滚动波动率
-- PRICE_RANGE: 价格振幅百分比
-- VOL_RATIO_20_30: 短期/中期波动率比率
-- VOL_STATE: 波动率状态 (HIGH/MEDIUM/NORMAL/LOW)
-- VOL_LEVEL: 波动率水平 (EXTREME_HIGH/HIGH/MEDIUM/LOW)
+- vol_10, vol_20, vol_30: 各周期历史波动率
+- rolling_vol_10, rolling_vol_30: 滚动波动率
+- price_range: 价格振幅百分比
+- vol_ratio_20_30: 短期/中期波动率比率
+- vol_state: 波动率状态 (HIGH/MEDIUM/NORMAL/LOW)
+- vol_level: 波动率水平 (EXTREME_HIGH/HIGH/MEDIUM/LOW)
 """
 
 import sys

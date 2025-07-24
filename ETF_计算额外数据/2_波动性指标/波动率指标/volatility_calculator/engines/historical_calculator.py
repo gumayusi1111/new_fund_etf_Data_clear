@@ -124,46 +124,40 @@ class VolatilityHistoricalCalculator:
             # 添加计算元数据
             result_df['calc_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
-            # 按照README.md中规定的输出格式选择字段  
-            # 格式: code,date,VOL_10,VOL_20,VOL_30,ROLLING_VOL_10,ROLLING_VOL_30,PRICE_RANGE,VOL_RATIO_20_30,VOL_STATE,VOL_LEVEL,calc_time
+            # 按照新标准规定的输出格式选择字段（统一小写）
+            # 格式: code,date,vol_10,vol_20,vol_30,rolling_vol_10,rolling_vol_30,price_range,vol_ratio_20_30,vol_state,vol_level,calc_time
             output_columns = ['code', 'date']
             
-            # 添加波动率指标字段（大写字段名）
+            # 添加波动率指标字段（小写字段名）
             for period in self.config.volatility_periods:
                 col_name = f'vol_{period}'
-                upper_col_name = f'VOL_{period}'
                 if col_name in result_df.columns:
-                    result_df[upper_col_name] = result_df[col_name]
-                    output_columns.append(upper_col_name)
+                    output_columns.append(col_name)
                 else:
                     # 如果字段不存在，添加空值占位
-                    result_df[upper_col_name] = np.nan
-                    output_columns.append(upper_col_name)
+                    result_df[col_name] = np.nan
+                    output_columns.append(col_name)
             
-            # 添加滚动波动率字段（大写字段名）
+            # 添加滚动波动率字段（小写字段名）
             for period in [10, 30]:
                 col_name = f'rolling_vol_{period}'
-                upper_col_name = f'ROLLING_VOL_{period}'
                 if col_name in result_df.columns:
-                    result_df[upper_col_name] = result_df[col_name]
-                    output_columns.append(upper_col_name)
+                    output_columns.append(col_name)
                 else:
                     # 如果字段不存在，添加空值占位
-                    result_df[upper_col_name] = np.nan
-                    output_columns.append(upper_col_name)
+                    result_df[col_name] = np.nan
+                    output_columns.append(col_name)
             
-            # 添加其他指标字段（大写字段名）
-            field_mapping = {
-                'price_range': 'PRICE_RANGE',
-                'vol_ratio_20_30': 'VOL_RATIO_20_30', 
-                'vol_state': 'VOL_STATE',
-                'vol_level': 'VOL_LEVEL'
-            }
+            # 添加其他指标字段（小写字段名）
+            other_fields = ['price_range', 'vol_ratio_20_30', 'vol_state', 'vol_level']
             
-            for old_col, new_col in field_mapping.items():
-                if old_col in result_df.columns:
-                    result_df[new_col] = result_df[old_col]
-                    output_columns.append(new_col)
+            for field in other_fields:
+                if field in result_df.columns:
+                    output_columns.append(field)
+                else:
+                    # 如果字段不存在，添加空值占位
+                    result_df[field] = np.nan if field != 'vol_state' and field != 'vol_level' else 'UNKNOWN'
+                    output_columns.append(field)
             
             # 添加计算时间
             if 'calc_time' in result_df.columns:
@@ -462,7 +456,7 @@ class VolatilityHistoricalCalculator:
                     output_file = os.path.join(threshold_output_dir, f"{clean_code}.csv")
                     
                     # 保存文件
-                    df.to_csv(output_file, index=False, encoding='utf-8')
+                    df.to_csv(output_file, index=False, encoding='utf-8', float_format='%.8f')
                     
                     # 统计信息
                     file_size = os.path.getsize(output_file)
