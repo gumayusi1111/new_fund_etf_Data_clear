@@ -222,11 +222,20 @@ class OBVController:
             
             # 确定要处理的ETF列表
             if etf_codes is None:
-                # 发现所有可用ETF
-                availability_check = self.data_reader.check_data_availability(
-                    self.data_reader._discover_available_etfs()
-                )
-                target_etfs = availability_check['available_codes']
+                # 读取筛选后的ETF列表
+                filtered_etfs = self._load_filtered_etf_list(threshold)
+                if filtered_etfs:
+                    # 检查筛选后ETF的数据可用性
+                    availability_check = self.data_reader.check_data_availability(filtered_etfs)
+                    target_etfs = availability_check['available_codes']
+                    self.logger.info(f"使用筛选后的ETF列表 - 筛选: {len(filtered_etfs)}, 可用: {len(target_etfs)}")
+                else:
+                    # 后备方案：发现所有可用ETF
+                    self.logger.warning("未找到筛选ETF列表，使用所有可用ETF")
+                    availability_check = self.data_reader.check_data_availability(
+                        self.data_reader._discover_available_etfs()
+                    )
+                    target_etfs = availability_check['available_codes']
             else:
                 target_etfs = etf_codes
             
@@ -595,6 +604,42 @@ class OBVController:
     def _apply_threshold_filter(self, data: pd.DataFrame, threshold: str) -> pd.DataFrame:
         """应用成交额门槛筛选"""
         return self.data_reader._apply_threshold_filter(data, threshold)
+    
+    def _load_filtered_etf_list(self, threshold: str) -> List[str]:
+        """
+        读取筛选后的ETF列表
+        
+        Args:
+            threshold: 门槛类型
+            
+        Returns:
+            筛选后的ETF代码列表
+        """
+        try:
+            # 构建筛选文件路径
+            filter_file = Path("/Users/wenbai/Desktop/金融/data_clear/ETF_初筛/data") / threshold / "通过筛选ETF.txt"
+            
+            if not filter_file.exists():
+                self.logger.warning(f"筛选文件不存在: {filter_file}")
+                return []
+            
+            # 读取筛选后的ETF列表
+            filtered_etfs = []
+            with open(filter_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    # 跳过注释行和空行
+                    if line and not line.startswith('#'):
+                        # 验证ETF代码格式(6位数字)
+                        if line.isdigit() and len(line) == 6:
+                            filtered_etfs.append(line)
+            
+            self.logger.info(f"加载筛选ETF列表: {len(filtered_etfs)}个 ({threshold})")
+            return filtered_etfs
+            
+        except Exception as e:
+            self.logger.error(f"读取筛选ETF列表失败: {str(e)}")
+            return []
     
     def _test_component_initialization(self) -> Dict[str, Any]:
         """测试组件初始化"""

@@ -230,9 +230,9 @@ class OBVEngine:
                 self.logger.error(f"缺少必需字段: {missing_fields}")
                 return None
             
-            # 日期转换和排序
+            # 日期转换和排序 - 按时间正序，便于OBV计算
             df['日期'] = pd.to_datetime(df['日期'])
-            df = df.sort_values(['代码', '日期']).reset_index(drop=True)
+            df = df.sort_values(['代码', '日期'], ascending=[True, True]).reset_index(drop=True)
             
             # 数值类型转换
             numeric_fields = ['收盘价', '成交量(手数)']
@@ -285,7 +285,7 @@ class OBVEngine:
             df['price_change'] = df.groupby('代码')['收盘价'].pct_change()
             abnormal_price = abs(df['price_change']) > self.price_change_threshold
             if abnormal_price.any():
-                self.logger.warning(f"发现{abnormal_price.sum()}个异常价格变动记录")
+                self.logger.debug(f"发现{abnormal_price.sum()}个异常价格变动记录(>15%变动)")
                 # 对于异常价格变动，可以选择保留或平滑处理
                 # 这里选择保留，因为可能是真实的市场事件
             
@@ -315,7 +315,8 @@ class OBVEngine:
             
             for code in data['代码'].unique():
                 etf_data = data[data['代码'] == code].copy()
-                etf_data = etf_data.sort_values('日期').reset_index(drop=True)
+                # OBV计算必须按时间正序（累积指标）
+                etf_data = etf_data.sort_values('日期', ascending=True).reset_index(drop=True)
                 
                 if len(etf_data) < 2:
                     continue
@@ -331,17 +332,17 @@ class OBVEngine:
                 obv = np.zeros(len(close_prices))
                 obv[0] = volumes[0]  # 初始值设为首日成交量
                 
-                # 向量化计算OBV
-                for i in range(1, len(close_prices)):
-                    if price_changes[i-1] > self.epsilon:
-                        # 价格上涨，成交量计为正
-                        obv[i] = obv[i-1] + volumes[i]
-                    elif price_changes[i-1] < -self.epsilon:
-                        # 价格下跌，成交量计为负
-                        obv[i] = obv[i-1] - volumes[i]
-                    else:
-                        # 价格平盘，成交量不计入
-                        obv[i] = obv[i-1]
+                # 真正的向量化计算OBV
+                # 创建价格方向向量：上涨=1, 下跌=-1, 平盘=0
+                price_direction = np.zeros(len(price_changes))
+                price_direction[price_changes > self.epsilon] = 1
+                price_direction[price_changes < -self.epsilon] = -1
+                
+                # 计算每日OBV变化量 (向量化)
+                obv_changes = price_direction * volumes[1:]  # 从第二天开始
+                
+                # 使用cumsum累积计算OBV (向量化)
+                obv[1:] = obv[0] + np.cumsum(obv_changes)
                 
                 # 精度控制
                 obv = np.round(obv, self.precision)
@@ -386,7 +387,8 @@ class OBVEngine:
             # 按ETF代码分组处理
             for code in new_data['代码'].unique():
                 etf_data = new_data[new_data['代码'] == code].copy()
-                etf_data = etf_data.sort_values('日期').reset_index(drop=True)
+                # OBV增量计算也必须按时间正序
+                etf_data = etf_data.sort_values('日期', ascending=True).reset_index(drop=True)
                 
                 # 获取该ETF的历史OBV值作为起点
                 # (这里简化处理，实际应该从缓存中获取该ETF的最后OBV值)
@@ -530,7 +532,13 @@ class OBVEngine:
             # 重命名列名以匹配输出格式
             results = results.rename(columns={'代码': 'code', '日期': 'date'})
             
-            # 确保数据类型正确
+            # 最终输出按日期倒序排列（最新日期在前）
+            # 先转换为datetime进行正确的日期排序
+            results['date_temp'] = pd.to_datetime(results['date'])
+            results = results.sort_values(['code', 'date_temp'], ascending=[True, False]).reset_index(drop=True)
+            results = results.drop('date_temp', axis=1)
+            
+            # 确保日期格式正确
             results['date'] = pd.to_datetime(results['date']).dt.strftime('%Y-%m-%d')
             
             return results

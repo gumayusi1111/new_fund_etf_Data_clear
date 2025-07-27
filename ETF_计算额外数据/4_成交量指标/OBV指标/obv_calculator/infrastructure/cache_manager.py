@@ -110,13 +110,8 @@ class OBVCacheManager:
         Returns:
             缓存文件完整路径
         """
-        # 根据门槛类型确定子目录
-        if threshold == '3000万门槛':
-            cache_subdir = self.cache_dir / "3000万门槛"
-        elif threshold == '5000万门槛':
-            cache_subdir = self.cache_dir / "5000万门槛"
-        else:
-            cache_subdir = self.cache_dir
+        # 直接使用cache_dir，因为config中已经包含门槛目录
+        cache_subdir = self.cache_dir
         
         cache_subdir.mkdir(parents=True, exist_ok=True)
         return cache_subdir / f"{etf_code}.csv"

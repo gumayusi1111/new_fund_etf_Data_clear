@@ -33,9 +33,9 @@ from datetime import datetime
 current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir))
 
-from obv_calculator.controllers.main_controller import OBVController
-from obv_calculator.outputs.display_formatter import OBVDisplayFormatter
-from obv_calculator.infrastructure.config import OBVConfig
+from obv_calculator.controllers.main_controller import OBVController  # noqa: E402
+from obv_calculator.outputs.display_formatter import OBVDisplayFormatter  # noqa: E402
+from obv_calculator.infrastructure.config import OBVConfig  # noqa: E402
 
 class OBVMainOptimized:
     """OBV指标系统主启动器"""
@@ -106,7 +106,7 @@ class OBVMainOptimized:
                 print(f"✅ ETF {etf_code} OBV指标计算成功!")
 
                 # 显示结果摘要
-                print(f"\n📄 计算结果:")
+                print("\n📄 计算结果:")
                 print(f"  ETF代码: {result.get('etf_code', 'N/A')}")
                 print(f"  门槛类型: {result.get('threshold', 'N/A')}")
                 print(f"  数据点数: {result.get('data_points', 0)}")
@@ -117,8 +117,8 @@ class OBVMainOptimized:
                 # 显示计算统计
                 if 'calculation_stats' in result:
                     calc_stats = result['calculation_stats']
-                    print(f"\n📈 OBV计算统计:")
-                    print(f"  数据质量:")
+                    print("\n📈 OBV计算统计:")
+                    print("  数据质量:")
                     quality = calc_stats.get('data_quality', {})
                     print(f"    OBV有效率: {quality.get('obv_valid_ratio', 0):.1%}")
                     print(f"    MA10有效率: {quality.get('ma_valid_ratio', 0):.1%}")
@@ -282,7 +282,7 @@ class OBVMainOptimized:
             cleanup_stats = self.controller.cleanup_system(force)
 
             if 'error' not in cleanup_stats:
-                print(f"✅ 系统清理完成:")
+                print("✅ 系统清理完成:")
                 summary = cleanup_stats.get('summary', {})
                 print(f"  删除文件: {summary.get('total_files_removed', 0)}个")
                 print(f"  释放空间: {summary.get('total_space_freed_mb', 0):.1f}MB")
@@ -396,8 +396,8 @@ def main():
     try:
         obv_main = OBVMainOptimized()
 
-        print(f"OBV指标计算系统 v1.0.0")
-        print(f"基于约瑟夫·格兰维尔理论 | 专为中国ETF市场优化")
+        print("OBV指标计算系统 v1.0.0")
+        print("基于约瑟夫·格兰维尔理论 | 专为中国ETF市场优化")
         print(f"启动时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print()
 

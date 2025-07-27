@@ -154,9 +154,11 @@ class OBVCSVHandler:
                 combined_data = pd.concat([existing_data, new_data], 
                                         ignore_index=True)
             
-            # 按日期排序
+            # 按日期倒序排序（最新日期在前）
             if 'date' in combined_data.columns:
-                combined_data = combined_data.sort_values('date').reset_index(drop=True)
+                combined_data['date_temp'] = pd.to_datetime(combined_data['date'])
+                combined_data = combined_data.sort_values('date_temp', ascending=False).reset_index(drop=True)
+                combined_data = combined_data.drop('date_temp', axis=1)
             
             # 保存合并后的数据
             output_data = self._prepare_output_data(combined_data)
@@ -465,15 +467,13 @@ class OBVCSVHandler:
             if 'date' in output_data.columns:
                 output_data['date'] = pd.to_datetime(output_data['date']).dt.strftime('%Y-%m-%d')
             
-            # 排序(按ETF代码和日期)
-            sort_columns = []
-            if 'code' in output_data.columns:
-                sort_columns.append('code')
-            if 'date' in output_data.columns:
-                sort_columns.append('date')
-            
-            if sort_columns:
-                output_data = output_data.sort_values(sort_columns).reset_index(drop=True)
+            # 排序(按ETF代码和日期倒序 - 最新日期在前)
+            if 'code' in output_data.columns and 'date' in output_data.columns:
+                output_data['date_temp'] = pd.to_datetime(output_data['date'])
+                output_data = output_data.sort_values(['code', 'date_temp'], ascending=[True, False]).reset_index(drop=True)
+                output_data = output_data.drop('date_temp', axis=1)
+            elif 'code' in output_data.columns:
+                output_data = output_data.sort_values('code').reset_index(drop=True)
             
             return output_data
             

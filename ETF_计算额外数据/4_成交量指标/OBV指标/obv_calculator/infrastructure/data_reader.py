@@ -176,8 +176,8 @@ class OBVDataReader:
             if all_data:
                 combined_df = pd.concat(all_data, ignore_index=True)
                 
-                # 最终排序
-                combined_df = combined_df.sort_values(['代码', '日期']).reset_index(drop=True)
+                # 最终排序 - 按时间正序，便于OBV计算
+                combined_df = combined_df.sort_values(['代码', '日期'], ascending=[True, True]).reset_index(drop=True)
                 
                 self.logger.info(f"批量读取完成 - 成功: {processed_count}, 失败: {error_count}, "
                               f"总记录: {len(combined_df)}")
@@ -382,8 +382,8 @@ class OBVDataReader:
             if '代码' not in df.columns:
                 df['代码'] = etf_code
             
-            # 日期格式转换
-            df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
+            # 日期格式转换 (YYYYMMDD -> YYYY-MM-DD)
+            df['日期'] = pd.to_datetime(df['日期'], format='%Y%m%d', errors='coerce')
             df = df.dropna(subset=['日期'])
             df['日期'] = df['日期'].dt.strftime('%Y-%m-%d')
             
@@ -393,8 +393,8 @@ class OBVDataReader:
                 if field in df.columns:
                     df[field] = pd.to_numeric(df[field], errors='coerce')
             
-            # 排序
-            df = df.sort_values('日期').reset_index(drop=True)
+            # 排序 - 按时间正序，便于OBV计算
+            df = df.sort_values('日期', ascending=True).reset_index(drop=True)
             
             # 基本清理
             df = df.dropna(subset=self.required_fields)

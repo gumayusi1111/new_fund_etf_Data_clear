@@ -33,8 +33,8 @@ class OBVConfig:
     # 缓存元数据目录
     CACHE_META_DIR = CACHE_DIR / "meta"
     
-    # 源数据目录 (ETF数据来源)
-    ETF_SOURCE_DIR = BASE_DIR.parent.parent.parent / "ETF周更" / "0_ETF日K(前复权)"
+    # 源数据目录 (ETF数据来源 - 日更数据)
+    ETF_SOURCE_DIR = BASE_DIR.parent.parent.parent / "ETF日更" / "0_ETF日K(前复权)"
     
     # ==================== OBV计算参数 ====================
     
