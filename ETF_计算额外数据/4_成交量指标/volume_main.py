@@ -372,8 +372,6 @@ class VolumeIndicatorLauncher:
                     print(f"❌ {result['color']} {result['name']} 失败 "
                           f"({result['runtime']:.1f}秒)")
                           
-        total_runtime = time.time() - start_time
-        
         # 更新总运行时间
         for result in results:
             if 'runtime' not in result:
