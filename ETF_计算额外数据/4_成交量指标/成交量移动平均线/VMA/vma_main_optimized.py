@@ -27,8 +27,8 @@ from datetime import datetime
 current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir))
 
-from vma_calculator.controllers.main_controller import VMAController
-from vma_calculator.outputs.display_formatter import VMADisplayFormatter
+from vma_calculator.controllers.main_controller import VMAController  # noqa: E402
+from vma_calculator.outputs.display_formatter import VMADisplayFormatter  # noqa: E402
 
 class VMAMainOptimized:
     """VMA系统主启动器"""
@@ -99,7 +99,7 @@ class VMAMainOptimized:
                 # 显示结果摘要
                 if 'output_info' in result:
                     output_info = result['output_info']
-                    print(f"\n📄 输出信息:")
+                    print("\n📄 输出信息:")
                     print(f"  文件路径: {output_info.get('file_path', 'N/A')}")
                     print(f"  记录数量: {output_info.get('record_count', 0)}")
                     print(f"  文件大小: {output_info.get('file_size_kb', 0):.1f}KB")
@@ -107,7 +107,7 @@ class VMAMainOptimized:
                 # 显示计算详情
                 if 'calculation_details' in result:
                     calc_details = result['calculation_details']
-                    print(f"\n📈 计算详情:")
+                    print("\n📈 计算详情:")
                     print(f"  数据来源: {calc_details.get('source', 'N/A')}")
                     print(f"  处理时间: {result.get('processing_time', 0):.3f}秒")
                     print(f"  缓存命中: {'是' if result.get('cache_hit', False) else '否'}")
@@ -232,7 +232,7 @@ class VMAMainOptimized:
                 return False
 
             # 显示清理统计
-            print(f"✅ 缓存清理完成:")
+            print("✅ 缓存清理完成:")
             print(f"  删除文件: {cleanup_stats.get('files_removed', 0)}个")
             print(f"  释放空间: {cleanup_stats.get('space_freed_mb', 0):.1f}MB")
             print(f"  过期缓存: {cleanup_stats.get('expired_count', 0)}个")
@@ -336,7 +336,7 @@ def main():
     try:
         vma_main = VMAMainOptimized()
 
-        print(f"VMA成交量移动平均线计算系统 v1.0.0")
+        print("VMA成交量移动平均线计算系统 v1.0.0")
         print(f"启动时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print()
 
