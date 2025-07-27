@@ -15,7 +15,9 @@ import os
 import json
 import pandas as pd
 from datetime import datetime, timedelta
+import hashlib
 import warnings
+from pathlib import Path
 
 # 忽略pandas的链式赋值警告
 warnings.filterwarnings('ignore', category=pd.errors.PerformanceWarning)
@@ -39,13 +41,9 @@ class WilliamsCacheManager:
         # 确保缓存目录存在
         self._ensure_cache_directories()
         
-        # 初始化缓存统计
-        self.cache_stats = {
-            'hit_count': 0,
-            'miss_count': 0,
-            'total_requests': 0,
-            'last_cleanup': None
-        }
+        # 初始化缓存统计 - 支持持久化
+        self._stats_file = Path(self.meta_path) / 'cache_stats.json'
+        self.cache_stats = self._load_stats()
 
     def _ensure_cache_directories(self):
         """确保缓存目录结构存在"""
@@ -87,35 +85,50 @@ class WilliamsCacheManager:
             # 1. 检查缓存文件是否存在
             if not os.path.exists(cache_file_path):
                 self.cache_stats['miss_count'] += 1
+                self.cache_stats['misses'] += 1
+                self._save_stats()
                 return False
             
             # 2. 检查源文件是否存在
             if not os.path.exists(source_file_path):
                 self.cache_stats['miss_count'] += 1
+                self.cache_stats['misses'] += 1
+                self._save_stats()
                 return False
             
             # 3. 验证缓存数据完整性
             if not self._validate_cache_data_integrity(cache_file_path):
                 self.cache_stats['miss_count'] += 1
+                self.cache_stats['misses'] += 1
+                self._save_stats()
                 return False
             
             # 4. 检查文件修改时间
             if not self._check_file_modification_time(cache_file_path, source_file_path):
                 self.cache_stats['miss_count'] += 1
+                self.cache_stats['misses'] += 1
+                self._save_stats()
                 return False
             
             # 5. 检查配置变化(可选)
             if not self._check_config_consistency(etf_code, threshold):
                 self.cache_stats['miss_count'] += 1
+                self.cache_stats['misses'] += 1
+                self._save_stats()
                 return False
             
             # 缓存有效
             self.cache_stats['hit_count'] += 1
+            self.cache_stats['hits'] += 1
+            self._save_stats()
             return True
             
         except Exception as e:
             print(f"⚠️ 缓存验证过程中发生错误: {etf_code} - {str(e)}")
             self.cache_stats['miss_count'] += 1
+            self.cache_stats['misses'] += 1
+            self.cache_stats['errors'] += 1
+            self._save_stats()
             return False
 
     def _validate_cache_data_integrity(self, cache_file_path):
@@ -260,6 +273,10 @@ class WilliamsCacheManager:
             # 更新元数据
             self._update_etf_meta_data(etf_code, threshold, df)
             
+            # 更新统计
+            self.cache_stats['updates'] += 1
+            self._save_stats()
+            
             print(f"💾 缓存已保存: {etf_code} ({threshold})")
             
         except Exception as e:
@@ -301,7 +318,7 @@ class WilliamsCacheManager:
 
     def _update_etf_meta_data(self, etf_code, threshold, df):
         """
-        更新ETF元数据 - 使用阈值级别聚合格式
+        更新ETF元数据 - 与OBV指标格式统一
         
         Args:
             etf_code: ETF代码
@@ -321,18 +338,17 @@ class WilliamsCacheManager:
                 except:
                     threshold_meta = {}
             
-            # 更新特定ETF的元数据
+            # 计算数据哈希值
+            data_hash = self._calculate_data_hash(df)
+            
+            # 更新特定ETF的元数据 - 使用OBV格式
             threshold_meta[clean_code] = {
-                "last_updated": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                "last_updated": datetime.now().isoformat(),
                 "data_count": len(df),
                 "threshold": threshold,
                 "cache_file": f"{clean_code}.csv",
                 "last_date": df['date'].max() if 'date' in df.columns and not df.empty else "",
-                "data_quality": {
-                    "williams_fields_complete": all(col in df.columns for col in ['wr_9', 'wr_14', 'wr_21']),
-                    "derived_fields_complete": all(col in df.columns for col in ['wr_diff_9_21', 'wr_range', 'wr_change_rate']),
-                    "valid_data_ratio": df.notna().mean().mean() if not df.empty else 0
-                }
+                "data_hash": data_hash
             }
             
             # 保存更新后的元数据
@@ -342,50 +358,69 @@ class WilliamsCacheManager:
         except Exception as e:
             print(f"⚠️ 元数据更新失败: {etf_code} - {str(e)}")
 
-    def update_global_cache_stats(self, threshold):
+    def _load_stats(self) -> dict:
+        """从文件加载统计信息"""
+        default_stats = {
+            'hits': 0,
+            'misses': 0,
+            'updates': 0,
+            'cleanups': 0,
+            'errors': 0,
+            'hit_count': 0,
+            'miss_count': 0,
+            'total_requests': 0,
+            'last_cleanup': None
+        }
+        
+        try:
+            if self._stats_file.exists():
+                with open(self._stats_file, 'r', encoding='utf-8') as f:
+                    loaded_stats = json.load(f)
+                    # 确保所有必需字段都存在
+                    for key in default_stats:
+                        if key not in loaded_stats:
+                            loaded_stats[key] = 0 if key != 'last_cleanup' else None
+                    return loaded_stats
+        except Exception as e:
+            print(f"⚠️ 加载统计信息失败，使用默认值: {str(e)}")
+        
+        return default_stats
+    
+    def _save_stats(self):
+        """保存统计信息到文件"""
+        try:
+            with open(self._stats_file, 'w', encoding='utf-8') as f:
+                json.dump(self.cache_stats, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"⚠️ 保存统计信息失败: {str(e)}")
+    
+    def _calculate_data_hash(self, data: pd.DataFrame) -> str:
         """
-        更新全局缓存统计
+        计算数据哈希值 - 与OBV指标统一
         
         Args:
-            threshold: 门槛值
+            data: 数据DataFrame
+            
+        Returns:
+            数据哈希值
         """
         try:
-            global_meta_file = os.path.join(self.meta_path, f"{threshold}_global_meta.json")
+            # 使用核心数据列计算哈希
+            core_columns = ['code', 'date', 'wr_9', 'wr_14', 'wr_21']
+            available_columns = [col for col in core_columns if col in data.columns]
             
-            # 计算缓存命中率
-            hit_rate = (self.cache_stats['hit_count'] / self.cache_stats['total_requests'] 
-                       if self.cache_stats['total_requests'] > 0 else 0)
+            if not available_columns:
+                return ""
             
-            # 统计缓存文件数量
-            cache_dir = os.path.join(self.cache_base_path, threshold)
-            cache_file_count = len([f for f in os.listdir(cache_dir) if f.endswith('.csv')]) if os.path.exists(cache_dir) else 0
+            # 排序后计算哈希
+            sorted_data = data[available_columns].sort_values(available_columns[:2] if len(available_columns) >= 2 else available_columns)
+            data_str = sorted_data.to_string(index=False)
             
-            global_stats = {
-                'threshold': threshold,
-                'last_update': datetime.now().isoformat(),
-                'cache_stats': {
-                    'hit_count': self.cache_stats['hit_count'],
-                    'miss_count': self.cache_stats['miss_count'],
-                    'total_requests': self.cache_stats['total_requests'],
-                    'hit_rate': round(hit_rate * 100, 2)
-                },
-                'file_stats': {
-                    'cached_etfs': cache_file_count,
-                    'cache_directory': cache_dir
-                },
-                'system_info': {
-                    'williams_version': self.config.system_info['version'],
-                    'adj_type': self.config.adj_type,
-                    'last_cleanup': self.cache_stats.get('last_cleanup')
-                }
-            }
+            return hashlib.md5(data_str.encode('utf-8')).hexdigest()[:16]
             
-            # 保存全局统计
-            with open(global_meta_file, 'w', encoding='utf-8') as f:
-                json.dump(global_stats, f, ensure_ascii=False, indent=2)
-                
         except Exception as e:
-            print(f"⚠️ 全局缓存统计更新失败: {str(e)}")
+            print(f"⚠️ 计算数据哈希失败: {str(e)}")
+            return ""
 
     def cleanup_old_cache(self, days_old=30):
         """

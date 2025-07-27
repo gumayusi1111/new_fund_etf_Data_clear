@@ -542,8 +542,7 @@ class WilliamsMainControllerOptimized:
                 batch_results["end_time"] - batch_results["start_time"]
             ).total_seconds()
 
-            # 更新缓存统计
-            self.cache_manager.update_global_cache_stats(threshold)
+            # 缓存统计已在个别ETF处理中完成，无需全局更新
 
             # 打印批量处理结果和优化效果
             self._print_batch_results_optimized(batch_results)
