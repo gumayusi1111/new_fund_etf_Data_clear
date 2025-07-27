@@ -296,13 +296,12 @@ class WilliamsCacheManager:
         return os.path.join(self.cache_base_path, threshold, f"{clean_code}.csv")
 
     def _get_etf_meta_file_path(self, etf_code, threshold):
-        """获取ETF元数据文件路径"""
-        clean_code = etf_code.replace('.SH', '').replace('.SZ', '')
-        return os.path.join(self.meta_path, f"{clean_code}_{threshold}_meta.json")
+        """获取ETF元数据文件路径 - 使用阈值级别聚合格式"""
+        return os.path.join(self.meta_path, f"{threshold}_meta.json")
 
     def _update_etf_meta_data(self, etf_code, threshold, df):
         """
-        更新ETF元数据
+        更新ETF元数据 - 使用阈值级别聚合格式
         
         Args:
             etf_code: ETF代码
@@ -311,32 +310,34 @@ class WilliamsCacheManager:
         """
         try:
             meta_file_path = self._get_etf_meta_file_path(etf_code, threshold)
+            clean_code = etf_code.replace('.SH', '').replace('.SZ', '')
             
-            # 创建元数据
-            meta_data = {
-                'etf_code': etf_code,
-                'threshold': threshold,
-                'last_update': datetime.now().isoformat(),
-                'data_points': len(df),
-                'date_range': {
-                    'start': df['date'].min() if 'date' in df.columns else None,
-                    'end': df['date'].max() if 'date' in df.columns else None
-                },
-                'config': {
-                    'adj_type': self.config.adj_type,
-                    'williams_periods': self.config.get_williams_periods(),
-                    'derived_params': self.config.WILLIAMS_DERIVED_PARAMS
-                },
-                'data_quality': {
-                    'williams_fields_complete': all(col in df.columns for col in ['wr_9', 'wr_14', 'wr_21']),
-                    'derived_fields_complete': all(col in df.columns for col in ['wr_diff_9_21', 'wr_range', 'wr_change_rate']),
-                    'valid_data_ratio': df.notna().mean().mean() if not df.empty else 0
+            # 加载现有阈值级别数据
+            threshold_meta = {}
+            if os.path.exists(meta_file_path):
+                try:
+                    with open(meta_file_path, 'r', encoding='utf-8') as f:
+                        threshold_meta = json.load(f)
+                except:
+                    threshold_meta = {}
+            
+            # 更新特定ETF的元数据
+            threshold_meta[clean_code] = {
+                "last_updated": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                "data_count": len(df),
+                "threshold": threshold,
+                "cache_file": f"{clean_code}.csv",
+                "last_date": df['date'].max() if 'date' in df.columns and not df.empty else "",
+                "data_quality": {
+                    "williams_fields_complete": all(col in df.columns for col in ['wr_9', 'wr_14', 'wr_21']),
+                    "derived_fields_complete": all(col in df.columns for col in ['wr_diff_9_21', 'wr_range', 'wr_change_rate']),
+                    "valid_data_ratio": df.notna().mean().mean() if not df.empty else 0
                 }
             }
             
-            # 保存元数据
+            # 保存更新后的元数据
             with open(meta_file_path, 'w', encoding='utf-8') as f:
-                json.dump(meta_data, f, ensure_ascii=False, indent=2)
+                json.dump(threshold_meta, f, ensure_ascii=False, indent=2)
                 
         except Exception as e:
             print(f"⚠️ 元数据更新失败: {etf_code} - {str(e)}")

@@ -88,12 +88,20 @@ class RSICSVHandler:
             if not self._validate_rsi_data(rsi_data, etf_code):
                 return False
             
-            # 保存CSV文件
+            # 设置数值列的格式化精度（8位小数）
+            numeric_columns = ['rsi_6', 'rsi_12', 'rsi_24', 'rsi_diff_6_24', 'rsi_change_rate']
+            format_dict = {}
+            for col in numeric_columns:
+                if col in rsi_data.columns:
+                    format_dict[col] = '%.8f'
+            
+            # 保存CSV文件，使用8位小数精度格式
             rsi_data.to_csv(
                 output_file_path, 
                 index=False, 
                 encoding=self.config.CSV_CONFIG['encoding'],
-                date_format=self.config.CSV_CONFIG['date_format']
+                date_format=self.config.CSV_CONFIG['date_format'],
+                float_format='%.8f'  # 强制使用8位小数格式
             )
             
             # 更新统计
