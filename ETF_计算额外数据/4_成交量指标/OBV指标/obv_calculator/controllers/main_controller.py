@@ -23,6 +23,7 @@ import os
 import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import psutil
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -196,10 +197,26 @@ class OBVController:
                 'calculation_stats': calculation_result.get('statistics', {})
             }
             
-        except Exception as e:
-            self.logger.error(f"单ETF计算异常 {etf_code}_{threshold}: {str(e)}")
+        except ValueError as e:
+            self.logger.error(f"单ETF计算参数错误 {etf_code}_{threshold}: {str(e)}")
             self._stats['errors'] += 1
-            return {'success': False, 'error': str(e)}
+            return {'success': False, 'error': f'参数错误: {str(e)}'}
+        except KeyError as e:
+            self.logger.error(f"单ETF计算配置错误 {etf_code}_{threshold}: {str(e)}")
+            self._stats['errors'] += 1
+            return {'success': False, 'error': f'配置错误: {str(e)}'}
+        except FileNotFoundError as e:
+            self.logger.error(f"单ETF数据文件不存在 {etf_code}_{threshold}: {str(e)}")
+            self._stats['errors'] += 1
+            return {'success': False, 'error': f'数据文件不存在: {etf_code}'}
+        except MemoryError as e:
+            self.logger.error(f"单ETF计算内存不足 {etf_code}_{threshold}: {str(e)}")
+            self._stats['errors'] += 1
+            return {'success': False, 'error': '内存不足，请检查系统资源'}
+        except Exception as e:
+            self.logger.error(f"单ETF计算异常(未知) {etf_code}_{threshold}: {type(e).__name__}: {str(e)}")
+            self._stats['errors'] += 1
+            return {'success': False, 'error': f'未知错误: {type(e).__name__}: {str(e)}'}
     
     def calculate_batch_etfs(self, threshold: str, 
                            etf_codes: Optional[List[str]] = None,
@@ -469,6 +486,11 @@ class OBVController:
             # 基础系统信息
             uptime = datetime.now() - self._stats['start_time']
             
+            # 获取内存使用情况
+            process = psutil.Process(os.getpid())
+            memory_info = process.memory_info()
+            system_memory = psutil.virtual_memory()
+            
             status = {
                 'system_info': {
                     'name': 'OBV指标计算系统',
@@ -476,6 +498,13 @@ class OBVController:
                     'status': 'RUNNING',
                     'uptime_seconds': int(uptime.total_seconds()),
                     'start_time': self._stats['start_time'].isoformat()
+                },
+                'memory': {
+                    'process_memory_mb': round(memory_info.rss / 1024 / 1024, 1),
+                    'process_memory_percent': round(process.memory_percent(), 1),
+                    'system_memory_total_gb': round(system_memory.total / 1024 / 1024 / 1024, 1),
+                    'system_memory_available_gb': round(system_memory.available / 1024 / 1024 / 1024, 1),
+                    'system_memory_used_percent': system_memory.percent
                 },
                 'performance': {
                     'total_calculations': self._stats['calculations'],
@@ -616,8 +645,8 @@ class OBVController:
             筛选后的ETF代码列表
         """
         try:
-            # 构建筛选文件路径
-            filter_file = Path("/Users/wenbai/Desktop/金融/data_clear/ETF_初筛/data") / threshold / "通过筛选ETF.txt"
+            # 构建筛选文件路径 (相对于项目根目录)
+            filter_file = self.config.BASE_DIR.parent.parent.parent / "ETF_初筛" / "data" / threshold / "通过筛选ETF.txt"
             
             if not filter_file.exists():
                 self.logger.warning(f"筛选文件不存在: {filter_file}")

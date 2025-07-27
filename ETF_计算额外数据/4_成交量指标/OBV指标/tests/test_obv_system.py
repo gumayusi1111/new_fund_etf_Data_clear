@@ -655,12 +655,16 @@ def run_tests(component=None, verbose=False):
     if result.failures:
         print(f"\n❌ 失败的测试:")
         for test, traceback in result.failures:
-            print(f"  - {test}: {traceback.split('AssertionError: ')[-1].split('\\n')[0]}")
+            newline = '\n'
+            error_msg = traceback.split('AssertionError: ')[-1].split(newline)[0]
+            print(f"  - {test}: {error_msg}")
     
     if result.errors:
         print(f"\n🔥 错误的测试:")
         for test, traceback in result.errors:
-            print(f"  - {test}: {traceback.split('\\n')[-2]}")
+            newline = '\n'
+            error_msg = traceback.split(newline)[-2]
+            print(f"  - {test}: {error_msg}")
     
     success = len(result.failures) == 0 and len(result.errors) == 0
     

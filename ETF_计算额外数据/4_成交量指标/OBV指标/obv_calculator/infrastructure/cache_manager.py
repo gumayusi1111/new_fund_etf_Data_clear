@@ -75,8 +75,15 @@ class OBVCacheManager:
         # 初始化日志
         self.logger = logging.getLogger(self.__class__.__name__)
         
-        # 缓存统计
-        self._stats = {
+        # 缓存统计 - 支持持久化
+        self._stats_file = self.meta_dir / 'cache_stats.json'
+        self._stats = self._load_stats()
+        
+        self.logger.info(f"缓存管理器初始化完成 - 目录:{cache_dir}, 过期:{expire_days}天")
+    
+    def _load_stats(self) -> Dict[str, int]:
+        """从文件加载统计信息"""
+        default_stats = {
             'hits': 0,
             'misses': 0,
             'updates': 0,
@@ -84,7 +91,28 @@ class OBVCacheManager:
             'errors': 0
         }
         
-        self.logger.info(f"缓存管理器初始化完成 - 目录:{cache_dir}, 过期:{expire_days}天")
+        try:
+            if self._stats_file.exists():
+                with open(self._stats_file, 'r', encoding='utf-8') as f:
+                    loaded_stats = json.load(f)
+                    # 确保所有必需字段都存在
+                    for key in default_stats:
+                        if key not in loaded_stats:
+                            loaded_stats[key] = 0
+                    return loaded_stats
+        except Exception as e:
+            self.logger.warning(f"加载统计信息失败，使用默认值: {str(e)}")
+        
+        return default_stats
+    
+    def _save_stats(self):
+        """保存统计信息到文件"""
+        try:
+            with self._lock:
+                with open(self._stats_file, 'w', encoding='utf-8') as f:
+                    json.dump(self._stats, f, indent=2)
+        except Exception as e:
+            self.logger.error(f"保存统计信息失败: {str(e)}")
     
     def get_cache_key(self, etf_code: str, threshold: str) -> str:
         """
@@ -118,7 +146,7 @@ class OBVCacheManager:
     
     def get_metadata_path(self, etf_code: str, threshold: str) -> Path:
         """
-        获取元数据文件路径
+        获取元数据文件路径 - 使用阈值级别聚合格式
         
         Args:
             etf_code: ETF代码
@@ -127,12 +155,11 @@ class OBVCacheManager:
         Returns:
             元数据文件路径
         """
-        cache_key = self.get_cache_key(etf_code, threshold)
-        return self.meta_dir / f"{cache_key}_meta.json"
+        return self.meta_dir / f"{threshold}_meta.json"
     
     def load_metadata(self, etf_code: str, threshold: str) -> Optional[CacheMetadata]:
         """
-        加载缓存元数据
+        加载缓存元数据 - 从阈值级别聚合文件中获取
         
         Args:
             etf_code: ETF代码
@@ -148,8 +175,28 @@ class OBVCacheManager:
                 return None
             
             with open(meta_path, 'r', encoding='utf-8') as f:
-                meta_dict = json.load(f)
-                return CacheMetadata(**meta_dict)
+                threshold_meta = json.load(f)
+                
+                # 从阈值级别聚合数据中获取特定ETF信息
+                if etf_code not in threshold_meta:
+                    return None
+                
+                etf_meta = threshold_meta[etf_code]
+                
+                # 构建CacheMetadata对象
+                cache_path = self.get_cache_path(etf_code, threshold)
+                return CacheMetadata(
+                    etf_code=etf_code,
+                    threshold=threshold,
+                    file_path=str(cache_path),
+                    file_size=cache_path.stat().st_size if cache_path.exists() else 0,
+                    record_count=etf_meta.get('data_count', 0),
+                    last_date=etf_meta.get('last_date', ''),
+                    create_time=etf_meta.get('last_updated', ''),
+                    update_time=etf_meta.get('last_updated', ''),
+                    data_hash=etf_meta.get('data_hash', ''),
+                    version="1.0.0"
+                )
                 
         except Exception as e:
             self.logger.error(f"加载元数据失败 {etf_code}_{threshold}: {str(e)}")
@@ -157,7 +204,7 @@ class OBVCacheManager:
     
     def save_metadata(self, metadata: CacheMetadata) -> bool:
         """
-        保存缓存元数据
+        保存缓存元数据 - 使用阈值级别聚合格式
         
         Args:
             metadata: 缓存元数据
@@ -169,10 +216,29 @@ class OBVCacheManager:
             with self._lock:
                 meta_path = self.get_metadata_path(metadata.etf_code, metadata.threshold)
                 
+                # 加载现有阈值级别数据
+                threshold_meta = {}
+                if meta_path.exists():
+                    try:
+                        with open(meta_path, 'r', encoding='utf-8') as f:
+                            threshold_meta = json.load(f)
+                    except:
+                        threshold_meta = {}
+                
+                # 更新特定ETF的元数据
+                threshold_meta[metadata.etf_code] = {
+                    "last_updated": metadata.update_time,
+                    "data_count": metadata.record_count,
+                    "threshold": metadata.threshold,
+                    "cache_file": f"{metadata.etf_code}.csv",
+                    "last_date": metadata.last_date,
+                    "data_hash": metadata.data_hash
+                }
+                
                 # 原子性写入
                 temp_path = meta_path.with_suffix('.tmp')
                 with open(temp_path, 'w', encoding='utf-8') as f:
-                    json.dump(asdict(metadata), f, ensure_ascii=False, indent=2)
+                    json.dump(threshold_meta, f, ensure_ascii=False, indent=2)
                 
                 # 原子性重命名
                 temp_path.replace(meta_path)
@@ -252,11 +318,13 @@ class OBVCacheManager:
                 
                 if not cache_path.exists():
                     self._stats['misses'] += 1
+                    self._save_stats()  # 保存统计信息
                     return None
                 
                 # 验证缓存有效性
                 if not self.is_cache_valid(etf_code, threshold):
                     self._stats['misses'] += 1
+                    self._save_stats()  # 保存统计信息
                     return None
                 
                 # 加载数据
@@ -268,9 +336,11 @@ class OBVCacheManager:
                 if not all(col in df.columns for col in expected_columns):
                     self.logger.warning(f"缓存数据格式不完整: {etf_code}_{threshold}")
                     self._stats['misses'] += 1
+                    self._save_stats()  # 保存统计信息
                     return None
                 
                 self._stats['hits'] += 1
+                self._save_stats()  # 保存统计信息
                 self.logger.debug(f"缓存命中: {etf_code}_{threshold}, 记录数: {len(df)}")
                 
                 return df
@@ -278,6 +348,8 @@ class OBVCacheManager:
         except Exception as e:
             self.logger.error(f"加载缓存失败 {etf_code}_{threshold}: {str(e)}")
             self._stats['errors'] += 1
+            self._stats['misses'] += 1  # 加载失败也应该计为miss
+            self._save_stats()  # 保存统计信息
             return None
     
     def save_cache(self, etf_code: str, threshold: str, 
@@ -332,6 +404,7 @@ class OBVCacheManager:
                 # 保存元数据
                 if self.save_metadata(metadata):
                     self._stats['updates'] += 1
+                    self._save_stats()  # 保存统计信息
                     self.logger.debug(f"缓存保存成功: {etf_code}_{threshold}, 记录数: {record_count}")
                     return True
                 else:
@@ -394,7 +467,7 @@ class OBVCacheManager:
     
     def invalidate_cache(self, etf_code: str, threshold: str) -> bool:
         """
-        使缓存失效(删除)
+        使缓存失效(删除) - 从阈值级别聚合文件中移除ETF记录
         
         Args:
             etf_code: ETF代码
@@ -415,10 +488,27 @@ class OBVCacheManager:
                     cache_path.unlink()
                     self.logger.debug(f"删除缓存文件: {cache_path}")
                 
-                # 删除元数据文件
+                # 从阈值级别元数据中移除ETF记录
                 if meta_path.exists():
-                    meta_path.unlink()
-                    self.logger.debug(f"删除元数据文件: {meta_path}")
+                    try:
+                        with open(meta_path, 'r', encoding='utf-8') as f:
+                            threshold_meta = json.load(f)
+                        
+                        # 移除特定ETF的记录
+                        if etf_code in threshold_meta:
+                            del threshold_meta[etf_code]
+                            
+                            # 如果文件为空，删除整个文件
+                            if not threshold_meta:
+                                meta_path.unlink()
+                                self.logger.debug(f"删除空元数据文件: {meta_path}")
+                            else:
+                                # 保存更新后的元数据
+                                with open(meta_path, 'w', encoding='utf-8') as f:
+                                    json.dump(threshold_meta, f, ensure_ascii=False, indent=2)
+                                self.logger.debug(f"从元数据中移除ETF记录: {etf_code}")
+                    except Exception as e:
+                        self.logger.warning(f"处理元数据文件失败: {str(e)}")
                 
                 return success
                 
@@ -449,36 +539,55 @@ class OBVCacheManager:
                 current_time = datetime.now()
                 cutoff_time = current_time - timedelta(days=self.expire_days)
                 
-                # 扫描所有元数据文件
-                for meta_file in self.meta_dir.glob("*_meta.json"):
+                # 扫描所有阈值级别元数据文件
+                for meta_file in self.meta_dir.glob("*万门槛_meta.json"):
                     cleanup_stats['total_scanned'] += 1
                     
                     try:
                         with open(meta_file, 'r', encoding='utf-8') as f:
-                            meta_dict = json.load(f)
-                            metadata = CacheMetadata(**meta_dict)
+                            threshold_meta = json.load(f)
                         
-                        update_time = datetime.fromisoformat(metadata.update_time)
-                        
-                        # 检查是否需要清理
-                        should_cleanup = force or update_time < cutoff_time
-                        
-                        if should_cleanup:
-                            # 删除数据文件
-                            cache_path = Path(metadata.file_path)
-                            if cache_path.exists():
-                                file_size = cache_path.stat().st_size
-                                cache_path.unlink()
-                                cleanup_stats['space_freed_mb'] += file_size / (1024 * 1024)
+                        # 检查文件中的每个ETF记录
+                        etfs_to_remove = []
+                        for etf_code, etf_meta in threshold_meta.items():
+                            try:
+                                update_time = datetime.fromisoformat(etf_meta['last_updated'])
+                                
+                                # 检查是否需要清理
+                                should_cleanup = force or update_time < cutoff_time
+                                
+                                if should_cleanup:
+                                    # 删除数据文件
+                                    threshold = etf_meta.get('threshold', '3000万门槛')
+                                    cache_path = self.get_cache_path(etf_code, threshold)
+                                    if cache_path.exists():
+                                        file_size = cache_path.stat().st_size
+                                        cache_path.unlink()
+                                        cleanup_stats['space_freed_mb'] += file_size / (1024 * 1024)
+                                    
+                                    etfs_to_remove.append(etf_code)
+                                    cleanup_stats['files_removed'] += 1
+                                    if not force:
+                                        cleanup_stats['expired_count'] += 1
+                                    
+                                    self.logger.debug(f"清理缓存: {etf_code}_{threshold}")
                             
-                            # 删除元数据文件
+                            except Exception as e:
+                                self.logger.error(f"处理ETF记录失败 {etf_code}: {str(e)}")
+                                cleanup_stats['error_count'] += 1
+                        
+                        # 从元数据中移除过期的ETF记录
+                        for etf_code in etfs_to_remove:
+                            if etf_code in threshold_meta:
+                                del threshold_meta[etf_code]
+                        
+                        # 如果文件为空，删除整个文件，否则保存更新后的数据
+                        if not threshold_meta:
                             meta_file.unlink()
-                            
-                            cleanup_stats['files_removed'] += 1
-                            if not force:
-                                cleanup_stats['expired_count'] += 1
-                            
-                            self.logger.debug(f"清理缓存: {metadata.etf_code}_{metadata.threshold}")
+                            self.logger.debug(f"删除空元数据文件: {meta_file}")
+                        else:
+                            with open(meta_file, 'w', encoding='utf-8') as f:
+                                json.dump(threshold_meta, f, ensure_ascii=False, indent=2)
                     
                     except Exception as e:
                         self.logger.error(f"清理缓存项失败 {meta_file}: {str(e)}")
@@ -514,7 +623,7 @@ class OBVCacheManager:
                 
                 # 扫描缓存目录
                 cache_files = list(self.cache_dir.rglob("*.csv"))
-                meta_files = list(self.meta_dir.glob("*_meta.json"))
+                meta_files = list(self.meta_dir.glob("*万门槛_meta.json"))
                 
                 # 计算总大小
                 total_size = sum(f.stat().st_size for f in cache_files)

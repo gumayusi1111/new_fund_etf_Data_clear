@@ -27,6 +27,8 @@ from typing import Dict, List, Optional, Tuple, Any, Union
 import logging
 from datetime import datetime, timedelta
 import warnings
+import psutil
+from functools import wraps
 
 # 忽略pandas警告
 warnings.filterwarnings('ignore', category=pd.errors.ParserWarning)
@@ -115,8 +117,23 @@ class OBVDataReader:
             self.logger.debug(f"成功读取ETF数据: {etf_code}, 记录数: {len(df)}")
             return df
             
+        except FileNotFoundError as e:
+            self.logger.error(f"ETF数据文件不存在 {etf_code}: {str(e)}")
+            return None
+        except pd.errors.EmptyDataError as e:
+            self.logger.error(f"ETF数据文件为空 {etf_code}: {str(e)}")
+            return None
+        except pd.errors.ParserError as e:
+            self.logger.error(f"ETF数据文件格式错误 {etf_code}: {str(e)}")
+            return None
+        except (KeyError, ValueError) as e:
+            self.logger.error(f"ETF数据字段错误 {etf_code}: {str(e)}")
+            return None
+        except MemoryError as e:
+            self.logger.error(f"ETF数据文件过大，内存不足 {etf_code}: {str(e)}")
+            return None
         except Exception as e:
-            self.logger.error(f"读取ETF数据失败 {etf_code}: {str(e)}")
+            self.logger.error(f"读取ETF数据失败(未知错误) {etf_code}: {type(e).__name__}: {str(e)}")
             return None
     
     def read_batch_etf_data(self, etf_codes: Optional[List[str]] = None,

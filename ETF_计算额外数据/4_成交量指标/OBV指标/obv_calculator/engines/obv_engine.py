@@ -24,9 +24,51 @@ from typing import Dict, List, Tuple, Optional, Any
 import logging
 from datetime import datetime
 import warnings
+import psutil
+import os
+from functools import wraps
 
 # 忽略pandas性能警告
 warnings.filterwarnings('ignore', category=pd.errors.PerformanceWarning)
+
+def monitor_memory(func):
+    """内存监控装饰器"""
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        # 获取开始时的内存使用情况
+        process = psutil.Process(os.getpid())
+        memory_start = process.memory_info().rss / 1024 / 1024  # MB
+        
+        try:
+            result = func(self, *args, **kwargs)
+            
+            # 获取结束时的内存使用情况
+            memory_end = process.memory_info().rss / 1024 / 1024  # MB
+            memory_delta = memory_end - memory_start
+            
+            if hasattr(self, 'logger'):
+                if memory_delta > 50:  # 内存增长超过50MB时警告
+                    self.logger.warning(
+                        f"{func.__name__} 内存使用过高: {memory_start:.1f}MB → {memory_end:.1f}MB "
+                        f"(+{memory_delta:.1f}MB)"
+                    )
+                elif memory_delta > 20:  # 内存增长超过20MB时提示
+                    self.logger.info(
+                        f"{func.__name__} 内存使用: +{memory_delta:.1f}MB (当前{memory_end:.1f}MB)"
+                    )
+            
+            return result
+            
+        except MemoryError as e:
+            memory_current = process.memory_info().rss / 1024 / 1024
+            if hasattr(self, 'logger'):
+                self.logger.error(
+                    f"{func.__name__} 内存不足: 当前{memory_current:.1f}MB, "
+                    f"增长{memory_current - memory_start:.1f}MB"
+                )
+            raise e
+            
+    return wrapper
 
 class OBVEngine:
     """OBV指标计算引擎"""
@@ -54,6 +96,7 @@ class OBVEngine:
         
         self.logger.info(f"OBVEngine初始化完成 - 精度:{precision}位小数")
     
+    @monitor_memory
     def calculate_obv_batch(self, data: pd.DataFrame) -> Dict[str, Any]:
         """
         批量计算OBV指标 (向量化实现)
@@ -107,9 +150,18 @@ class OBVEngine:
                 'data_points': len(final_results)
             }
             
+        except ValueError as e:
+            self.logger.error(f"OBV批量计算数据错误: {str(e)}")
+            return {'success': False, 'error': f'数据错误: {str(e)}'}
+        except KeyError as e:
+            self.logger.error(f"OBV批量计算缺少必需字段: {str(e)}")
+            return {'success': False, 'error': f'缺少字段: {str(e)}'}
+        except (MemoryError, np.core._exceptions._ArrayMemoryError) as e:
+            self.logger.error(f"OBV批量计算内存不足: {str(e)}")
+            return {'success': False, 'error': '内存不足，请减少数据量或检查系统资源'}
         except Exception as e:
-            self.logger.error(f"OBV批量计算异常: {str(e)}")
-            return {'success': False, 'error': str(e)}
+            self.logger.error(f"OBV批量计算异常(未知): {type(e).__name__}: {str(e)}")
+            return {'success': False, 'error': f'未知错误: {type(e).__name__}: {str(e)}'}
     
     def calculate_obv_incremental(self, existing_data: pd.DataFrame, 
                                  new_data: pd.DataFrame) -> Dict[str, Any]:
@@ -269,7 +321,21 @@ class OBVEngine:
         try:
             # 处理成交量异常
             # 零成交量或极小成交量
-            df.loc[df['成交量(手数)'] < self.volume_zero_threshold, '成交量(手数)'] = 0
+            zero_volume_mask = df['成交量(手数)'] < self.volume_zero_threshold
+            if zero_volume_mask.any():
+                zero_count = zero_volume_mask.sum()
+                etf_codes = df['代码'].unique()
+                zero_dates = df.loc[zero_volume_mask, '日期'].astype(str).tolist()
+                
+                self.logger.info(
+                    f"发现{zero_count}个极小成交量记录 | "
+                    f"ETF: {','.join(etf_codes)} | "
+                    f"阈值: <{self.volume_zero_threshold}手 | "
+                    f"日期: {zero_dates[:3]}{'...' if len(zero_dates) > 3 else ''}"
+                )
+                
+                df.loc[zero_volume_mask, '成交量(手数)'] = 0
+                self.logger.info(f"极小成交量已规范化为0手")
             
             # 异常巨量处理
             volume_median = df['成交量(手数)'].median()
@@ -277,21 +343,55 @@ class OBVEngine:
                 volume_threshold = volume_median * self.volume_max_multiplier
                 abnormal_volume = df['成交量(手数)'] > volume_threshold
                 if abnormal_volume.any():
-                    self.logger.warning(f"发现{abnormal_volume.sum()}个异常成交量记录")
+                    # 详细记录异常数据信息
+                    abnormal_count = abnormal_volume.sum()
+                    abnormal_dates = df.loc[abnormal_volume, '日期'].astype(str).tolist()
+                    abnormal_volumes = df.loc[abnormal_volume, '成交量(手数)'].tolist()
+                    etf_codes = df['代码'].unique()
+                    
+                    self.logger.warning(
+                        f"发现{abnormal_count}个异常成交量记录 | "
+                        f"ETF: {','.join(etf_codes)} | "
+                        f"门槛: {volume_threshold:,.0f}手 (中位数{volume_median:,.0f}手 × {self.volume_max_multiplier}) | "
+                        f"异常日期: {abnormal_dates[:3]}{'...' if len(abnormal_dates) > 3 else ''} | "
+                        f"异常值范围: {min(abnormal_volumes):,.0f}~{max(abnormal_volumes):,.0f}手"
+                    )
+                    
                     # 用中位数替换异常值
                     df.loc[abnormal_volume, '成交量(手数)'] = volume_median
+                    
+                    self.logger.info(f"异常成交量已用中位数{volume_median:,.0f}手替换")
             
             # 处理价格异常变动
             df['price_change'] = df.groupby('代码')['收盘价'].pct_change()
             abnormal_price = abs(df['price_change']) > self.price_change_threshold
             if abnormal_price.any():
-                self.logger.debug(f"发现{abnormal_price.sum()}个异常价格变动记录(>15%变动)")
-                # 对于异常价格变动，可以选择保留或平滑处理
-                # 这里选择保留，因为可能是真实的市场事件
+                # 详细记录价格异常信息
+                abnormal_count = abnormal_price.sum()
+                abnormal_dates = df.loc[abnormal_price, '日期'].astype(str).tolist()
+                abnormal_changes = df.loc[abnormal_price, 'price_change'].tolist()
+                etf_codes = df['代码'].unique()
+                
+                self.logger.info(
+                    f"发现{abnormal_count}个异常价格变动记录 | "
+                    f"ETF: {','.join(etf_codes)} | "
+                    f"变动阈值: ±{self.price_change_threshold:.1%} | "
+                    f"异常日期: {abnormal_dates[:3]}{'...' if len(abnormal_dates) > 3 else ''} | "
+                    f"变动范围: {min(abnormal_changes):.1%}~{max(abnormal_changes):.1%}"
+                )
+                self.logger.info("价格异常变动已保留(可能为真实市场事件)")
             
             # 清理临时列
             if 'price_change' in df.columns:
                 df = df.drop('price_change', axis=1)
+            
+            # 异常处理摘要
+            total_records = len(df)
+            etf_codes = df['代码'].unique()
+            self.logger.info(
+                f"异常数据处理完成 | ETF: {','.join(etf_codes)} | "
+                f"总记录数: {total_records} | 数据已清理并规范化"
+            )
             
             return df
             
@@ -299,6 +399,7 @@ class OBVEngine:
             self.logger.error(f"异常值处理失败: {str(e)}")
             return df
     
+    @monitor_memory
     def _calculate_obv_vectorized(self, data: pd.DataFrame) -> Dict[str, np.ndarray]:
         """
         向量化计算OBV指标

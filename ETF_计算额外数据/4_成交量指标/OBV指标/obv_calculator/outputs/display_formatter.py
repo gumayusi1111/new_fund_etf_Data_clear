@@ -170,6 +170,14 @@ class OBVDisplayFormatter:
                     except:
                         output.append(f"  启动时间: {start_time}")
             
+            # 内存使用情况
+            memory = status.get('memory', {})
+            if memory:
+                output.append(f"\n💾 内存使用:")
+                output.append(f"  进程内存: {memory.get('process_memory_mb', 0):.1f}MB ({memory.get('process_memory_percent', 0):.1f}%)")
+                output.append(f"  系统内存: {memory.get('system_memory_total_gb', 0):.1f}GB 总量")
+                output.append(f"  可用内存: {memory.get('system_memory_available_gb', 0):.1f}GB ({100-memory.get('system_memory_used_percent', 0):.1f}%)")
+            
             # 性能统计
             performance = status.get('performance', {})
             if performance:
